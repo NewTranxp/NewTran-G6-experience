@@ -120,7 +120,7 @@
         transition: width 0.3s ease;
       }
 
-      /* Countdown timer */
+      /* Countdown timer (still keep the detail box) */
       .timer-box {
         display: none;
         margin-top: 8px;
@@ -140,6 +140,24 @@
         font-size: 12px;
         color: #444;
         display: none;
+      }
+
+      /* BIG TIMER right next to Start button */
+      .timer-inline{
+        display:none;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.9);
+        border: 2px solid rgba(198,40,40,0.25);
+        font-weight: 900;
+        font-size: 22px;
+        letter-spacing: 1px;
+        color: #c62828;
+        line-height: 1;
+        min-width: 92px;
+        text-align: center;
+        align-items: center;
+        justify-content: center;
       }
     </style>
   </head>
@@ -165,7 +183,7 @@
       <div class="subtitle">Luyện nói tiếng Anh – Grade 6 (Listening Mode)</div>
 
       <div id="pendingBox" class="mini-banner" style="display:none;">
-        <div><strong>⚠️ Có 1 bài chưa gửi xong (do lỗi mạng)</strong></div>
+        <div><strong>⚠️ Có 1 bài chưa gửi xong (chưa xác nhận được)</strong></div>
         <div class="small" id="pendingInfo"></div>
         <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
           <button id="resendPendingBtn" class="btn-primary" type="button">📤 Gửi lại bài vừa lưu</button>
@@ -247,17 +265,21 @@
 
         <div class="flex-row" style="align-items:center;margin-bottom:4px;">
           <button id="startBtn" class="btn-primary" type="button">🎙 Bắt đầu nói</button>
+
+          <!-- BIG TIMER right next to Start -->
+          <div id="timerInline" class="timer-inline" aria-live="polite">08:00</div>
+
           <button id="stopBtn" class="btn-secondary" type="button" disabled>⏹ Dừng & Qua câu tiếp theo</button>
         </div>
 
         <div id="status" class="status">Nhấn "Bắt đầu nói" để trả lời.</div>
 
-        <!-- Countdown 6 minutes TOTAL for 10 questions -->
+        <!-- Keep detail timer box (optional, for clarity) -->
         <div id="timerBox" class="timer-box">
-          ⏳ Thời gian còn lại (tổng 10 câu): <strong id="timerText">06:00</strong>
+          ⏳ Thời gian còn lại (tổng 10 câu): <strong id="timerText">08:00</strong>
         </div>
         <div id="leaveHint" class="timer-warn">
-          Khi bạn bấm <strong>Nộp bài</strong>, hệ thống sẽ gửi audio lên Drive của giáo viên. Bạn có thể rời trang trong khi quá trình gửi đang diễn ra; bài sẽ được lưu tạm để gửi lại nếu mạng bị lỗi.
+          Khi bạn bấm <strong>Nộp bài</strong>, hệ thống sẽ gửi audio lên Drive của giáo viên. Bạn có thể rời trang trong khi quá trình gửi đang diễn ra; bài sẽ được lưu tạm để gửi lại nếu có lỗi kết nối/giới hạn trình duyệt.
         </div>
 
         <div style="background: #e8f5e8; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #4caf50;">
@@ -329,8 +351,8 @@
       const MAX_DATAURL_CHARS = 28_000_000;
       const SMALL_BLOB_MAX = 4 * 1024 * 1024; // <= 4MB: gửi dataUrl; >4MB: dùng chunk upload
 
-      // ===== Countdown 6 minutes TOTAL for all 10 questions =====
-      const RECORD_LIMIT_SEC = 6 * 60;
+      // ===== Countdown 8 minutes TOTAL for all 10 questions =====
+      const RECORD_LIMIT_SEC = 8 * 60;
       let recordDeadlineTs = null;
       let recordTimer = null;
       let timeLocked = false;
@@ -357,13 +379,21 @@
         startBtn.disabled = true;
         stopBtn.disabled = true;
         speakQuestionBtn.disabled = true;
-        statusEl.textContent = "⛔ Hết thời gian (6 phút cho tổng 10 câu). Bạn không thể trả lời thêm.";
-        alert("Hết thời gian làm bài (6 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
+        statusEl.textContent = "⛔ Hết thời gian (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.";
+        alert("Hết thời gian làm bài (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
       }
       function tickTimer(){
         const remain = getRemainingSeconds();
-        timerText.textContent = formatMMSS(remain);
+        const txt = formatMMSS(remain);
+        timerText.textContent = txt;
+
+        if (timerInline) {
+          timerInline.textContent = txt;
+          timerInline.style.display = "inline-flex";
+        }
+
         timerBox.style.display = "block";
+
         if (remain <= 0) {
           clearInterval(recordTimer);
           recordTimer = null;
@@ -499,8 +529,8 @@
               await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
                 mode: "no-cors",
-                keepalive: true,
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
+                keepalive: false, // IMPORTANT: avoid false "network" errors on large bodies
                 body: JSON.stringify({
                   action: "uploadChunk",
                   uploadId,
@@ -542,8 +572,8 @@
               await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
                 mode: "no-cors",
-                keepalive: true,
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
+                keepalive: false, // IMPORTANT
                 body: JSON.stringify({
                   action: "finalizeUpload",
                   uploadId,
@@ -1136,6 +1166,7 @@
       const progressPercent = document.getElementById("progressPercent");
       const timerBox = document.getElementById("timerBox");
       const timerText = document.getElementById("timerText");
+      const timerInline = document.getElementById("timerInline");
       const leaveHint = document.getElementById("leaveHint");
 
       const pendingBox = document.getElementById("pendingBox");
@@ -1153,11 +1184,6 @@
       let audioMimeType = "";
       let micStream = null;
 
-      // WAV fallback
-      // (vars declared above)
-
-      // MediaRecorder vars declared above
-
       // Bắt buộc đủ 10 câu
       let recordedFlags = new Array(TOTAL_QUESTIONS).fill(false);
 
@@ -1174,10 +1200,11 @@
           method: "POST",
           mode: "no-cors",
           redirect: "follow",
-          keepalive: true,
           headers: { "Content-Type": "text/plain;charset=utf-8" },
+          keepalive: false, // IMPORTANT: reduce false "network" errors
           body
         });
+        // no-cors: browser won't let us read server response => just confirm "sent request"
         return { ok: true, message: "Đã gửi yêu cầu. Vui lòng kiểm tra email GV để xác nhận." };
       }
 
@@ -1258,13 +1285,13 @@
             const out = await submitWithRetry(p.payload);
             if (out.ok) {
               clearPending();
-              resultArea.innerHTML = '<span class="status-ok">Đã gửi lại thành công!</span>';
+              resultArea.innerHTML = '<span class="status-ok">Đã gửi lại. Vui lòng kiểm tra email GV.</span>';
             } else {
-              resultArea.innerHTML = '<span class="status-error">Gửi lại thất bại. Vui lòng thử lại khi mạng ổn định.</span>';
+              resultArea.innerHTML = '<span class="status-error">Chưa xác nhận được. Vui lòng thử lại khi mạng ổn định.</span>';
             }
           }
         } catch (e) {
-          resultArea.innerHTML = '<span class="status-error">Gửi lại thất bại. Vui lòng thử lại khi mạng ổn định.</span>';
+          resultArea.innerHTML = '<span class="status-error">Chưa xác nhận được. Vui lòng thử lại khi mạng ổn định.</span>';
         }
 
         resendPendingBtn.disabled = false;
@@ -1273,7 +1300,6 @@
 
       clearPendingBtn.onclick = () => {
         if (!confirm("Xóa bài lưu chưa gửi?")) return;
-        // cũng xoá blob nếu là chunk mode
         const p = getPending();
         if (p && p.payload && p.payload.__pendingMode === "chunk" && p.payload.audioKey) {
           idbDelBlob(p.payload.audioKey).catch(()=>{});
@@ -1320,8 +1346,13 @@
         timeLocked = false;
         recordDeadlineTs = null;
         if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
-        timerText.textContent = "06:00";
+        timerText.textContent = "08:00";
         timerBox.style.display = "none";
+        if (timerInline) {
+          timerInline.textContent = "08:00";
+          timerInline.style.display = "none";
+        }
+
         speakQuestionBtn.disabled = false;
         startBtn.disabled = false;
         stopBtn.disabled = true;
@@ -1365,7 +1396,7 @@
 
             startBtn.disabled = timeLocked ? true : false;
             stopBtn.disabled = true;
-            statusEl.textContent = timeLocked ? "⛔ Hết thời gian (6 phút cho tổng 10 câu)." : 'Nhấn "Bắt đầu nói" để trả lời.';
+            statusEl.textContent = timeLocked ? "⛔ Hết thời gian (8 phút cho tổng 10 câu)." : 'Nhấn "Bắt đầu nói" để trả lời.';
           };
 
           questionList.appendChild(div);
@@ -1388,7 +1419,7 @@
       // ===================== Start/Stop speaking =====================
       startBtn.onclick = async () => {
         if (timeLocked) {
-          alert("Hết thời gian (6 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
+          alert("Hết thời gian (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
           return;
         }
         if (getRemainingSeconds() <= 0) {
@@ -1534,7 +1565,7 @@
         leaveHint.style.display = "block";
 
         const sendTranscriptOnly = async () => {
-          resultArea.textContent = "Đang gửi transcript...";
+          resultArea.textContent = "Đang nộp bài (không có audio)...";
           const payload = {
             studentName: n, studentClass: c, topicLabel,
             questionSummary, transcript: fullTranscript,
@@ -1544,10 +1575,10 @@
           sendBtn.disabled = false;
 
           if (out.ok) {
-            resultArea.innerHTML = '<span class="status-ok">Đã gửi transcript (không có audio).</span>';
+            resultArea.innerHTML = '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV.</span>';
           } else {
             savePending(payload);
-            resultArea.innerHTML = '<span class="status-error">Gửi thất bại do lỗi mạng. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu".</span>';
+            resultArea.innerHTML = '<span class="status-error">Trình duyệt chưa xác nhận được việc nộp bài. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
           }
         };
 
@@ -1572,7 +1603,7 @@
 
               // 1) Blob nhỏ: gửi dataUrl
               if (finalBlob.size <= SMALL_BLOB_MAX) {
-                resultArea.textContent = `Audio ${sizeMB}MB: đang chuyển đổi...`;
+                resultArea.textContent = `Audio ${sizeMB}MB: đang chuẩn bị gửi...`;
 
                 const dataUrl = await new Promise((resolve) => { blobToDataUrl(finalBlob, resolve); });
                 if (!dataUrl) {
@@ -1596,11 +1627,12 @@
                   dataUrl: finalDataUrl
                 };
 
+                // lưu pending để có thể gửi lại nếu browser báo lỗi
                 if (finalDataUrl) savePending(payload);
 
                 resultArea.textContent = finalDataUrl
                   ? "Đang nộp bài (audio + transcript)..."
-                  : "Audio quá lớn (base64). Đang nộp transcript...";
+                  : "Audio quá lớn (base64). Đang nộp bài (không kèm audio)...";
 
                 const out = await submitWithRetry(payload);
                 sendBtn.disabled = false;
@@ -1608,11 +1640,11 @@
                 if (out.ok) {
                   clearPending();
                   resultArea.innerHTML = finalDataUrl
-                    ? '<span class="status-ok">Đã nộp thành công (kèm audio)!</span>'
-                    : '<span class="status-ok">Đã nộp transcript (audio quá lớn nên không gửi kèm).</span>';
+                    ? '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV (sẽ có link audio).</span>'
+                    : '<span class="status-ok">Đã gửi yêu cầu (không kèm audio). Vui lòng kiểm tra email GV.</span>';
                 } else {
                   savePending(payload);
-                  resultArea.innerHTML = '<span class="status-error">Nộp bài thất bại do lỗi mạng. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu".</span>';
+                  resultArea.innerHTML = '<span class="status-error">Trình duyệt chưa xác nhận được việc nộp bài. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
                 }
                 return;
               }
@@ -1646,10 +1678,10 @@
                 sendBtn.disabled = false;
                 await idbDelBlob(audioKey);
                 clearPending();
-                resultArea.innerHTML = '<span class="status-ok">Đã nộp thành công! Vui lòng kiểm tra email GV (sẽ có link audio).</span>';
+                resultArea.innerHTML = '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV (sẽ có link audio).</span>';
               } catch (e) {
                 sendBtn.disabled = false;
-                resultArea.innerHTML = '<span class="status-error">Upload audio bị lỗi (mạng yếu/đứt). Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" khi mạng ổn định.</span>';
+                resultArea.innerHTML = '<span class="status-error">Upload chưa hoàn tất/không xác nhận được. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
               }
             } catch (e) {
               sendBtn.disabled = false;
