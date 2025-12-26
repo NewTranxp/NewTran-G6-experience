@@ -1693,10 +1693,27 @@
 
       // gợi ý
       suggestBtn.onclick = () => {
-        if (!hasCompletedTopic) {
-          alert("Bạn cần chạy hết 10 câu (từ câu 1 đến câu 10) trước khi xem gợi ý để tránh phụ thuộc vào bài mẫu.");
-          return;
-        }
+  if (!hasCompletedTopic) {
+    alert("Bạn cần chạy hết 10 câu (từ câu 1 đến câu 10) trước khi xem gợi ý để tránh phụ thuộc vào bài mẫu.");
+    return;
+  }
+
+  const topicId = topicSelect.value;
+  const bank = SUGGESTED_ANSWERS_6[topicId];
+
+  if (!bank) {
+    suggestionsArea.textContent = "Hiện chưa có gợi ý trả lời cho chủ đề này.";
+    return;
+  }
+
+  let out = "";
+  for (let i = 1; i <= 10; i++) {
+    const a = bank[i] || "";
+    out += `Q${i}: ${a}\n\n`;
+  }
+  suggestionsArea.textContent = out.trim();
+};
+      
         const topicId = topicSelect.value;
         const text = SUGGESTED_PARAGRAPHS_6[topicId];
         suggestionsArea.textContent = text || "Hiện chưa có gợi ý trả lời cho chủ đề này. Thầy cô sẽ cập nhật sau.";
