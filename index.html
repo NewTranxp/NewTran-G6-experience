@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <title>New Tran English App - Grade 6 Listening Mode</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
     <style>
       :root {
         --bg-gradient: linear-gradient(135deg, #fce38a, #f38181);
@@ -54,6 +53,7 @@
       .status { font-size: 13px; margin-top: 4px; font-weight: 500; }
       .status-ok { color: #1b8f3b; }
       .status-error { color: #c62828; }
+      .status-warning { color: #f57c00; font-weight: bold; }
       .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
       .flex-row > div { flex: 1 1 150px; }
       .question-list {
@@ -89,7 +89,7 @@
         border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.8);
         border: 1px solid rgba(0,0,0,0.06); margin-top: 10px;
       }
-
+      
       /* Upload Progress */
       .upload-progress {
         display: none;
@@ -119,46 +119,6 @@
         background: #4caf50;
         transition: width 0.3s ease;
       }
-
-      /* Countdown timer (detail box) */
-      .timer-box {
-        display: none;
-        margin-top: 8px;
-        padding: 8px 10px;
-        border-radius: 10px;
-        background: rgba(255,255,255,0.85);
-        border: 1px solid rgba(0,0,0,0.08);
-        font-size: 13px;
-      }
-      .timer-box strong { color: #c62828; }
-      .timer-warn {
-        margin-top: 6px;
-        padding: 8px 10px;
-        border-radius: 10px;
-        background: rgba(255, 243, 224, 0.95);
-        border-left: 4px solid #ff9800;
-        font-size: 12px;
-        color: #444;
-        display: none;
-      }
-
-      /* BIG TIMER right next to Start button */
-      .timer-inline{
-        display:none;
-        padding: 10px 14px;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.9);
-        border: 2px solid rgba(198,40,40,0.25);
-        font-weight: 900;
-        font-size: 22px;
-        letter-spacing: 1px;
-        color: #c62828;
-        line-height: 1;
-        min-width: 92px;
-        text-align: center;
-        align-items: center;
-        justify-content: center;
-      }
     </style>
   </head>
 
@@ -183,7 +143,7 @@
       <div class="subtitle">Luyện nói tiếng Anh – Grade 6 (Listening Mode)</div>
 
       <div id="pendingBox" class="mini-banner" style="display:none;">
-        <div><strong>⚠️ Có 1 bài chưa gửi xong (chưa xác nhận được)</strong></div>
+        <div><strong>⚠️ Có 1 bài chưa gửi xong (do lỗi mạng)</strong></div>
         <div class="small" id="pendingInfo"></div>
         <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
           <button id="resendPendingBtn" class="btn-primary" type="button">📤 Gửi lại bài vừa lưu</button>
@@ -265,27 +225,14 @@
 
         <div class="flex-row" style="align-items:center;margin-bottom:4px;">
           <button id="startBtn" class="btn-primary" type="button">🎙 Bắt đầu nói</button>
-
-          <!-- BIG TIMER right next to Start -->
-          <div id="timerInline" class="timer-inline" aria-live="polite">08:00</div>
-
           <button id="stopBtn" class="btn-secondary" type="button" disabled>⏹ Dừng & Qua câu tiếp theo</button>
         </div>
-
         <div id="status" class="status">Nhấn "Bắt đầu nói" để trả lời.</div>
-
-        <div id="timerBox" class="timer-box">
-          ⏳ Thời gian còn lại (tổng 10 câu): <strong id="timerText">08:00</strong>
-        </div>
-        <div id="leaveHint" class="timer-warn">
-          Khi bạn bấm <strong>Nộp bài</strong>, hệ thống sẽ gửi audio lên Drive của giáo viên. Bạn có thể rời trang trong khi quá trình gửi đang diễn ra; bài sẽ được lưu tạm để gửi lại nếu có lỗi kết nối/giới hạn trình duyệt.
-        </div>
 
         <div style="background: #e8f5e8; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #4caf50;">
           <strong>📢 Lưu ý:</strong> Ứng dụng chỉ yêu cầu <strong>nói (ghi âm)</strong>. Không cần nhập văn bản.
         </div>
 
-        <!-- Transcript ẩn -->
         <div style="display: none;">
           <div class="label">Transcript (HS nói):</div>
           <textarea
@@ -302,15 +249,14 @@
         </div>
 
         <br />
-
         <div class="flex-row" style="align-items:center; gap:8px;">
           <button id="sendBtn" class="btn-primary" type="button">📩 Nộp bài cho GV</button>
           <button id="suggestBtn" class="btn-secondary" type="button" disabled>💡 Xem gợi ý trả lời</button>
         </div>
-
+        
         <div id="uploadProgress" class="upload-progress">
           <div class="progress-header">
-            <span>Đang tải lên...</span>
+            <span id="progressLabel">Đang tải lên...</span>
             <span id="progressPercent">0%</span>
           </div>
           <div class="progress-bar-container">
@@ -338,570 +284,35 @@
       // ===================================================================
 
       const TOTAL_QUESTIONS = 10;
+      
+      // ======= TIMEOUT SETTING (2 MINUTES) =======
+      const UPLOAD_TIMEOUT_MS = 120000; // 2 phút = 120.000 ms
 
       // ======= lưu bài khi gửi lỗi =======
       const PENDING_KEY = "NEWTRAN_PENDING_SUBMISSION_V1";
-      // ======= lưu audio blob (IndexedDB) =======
-      const PENDING_AUDIO_DB = "NEWTRAN_PENDING_AUDIO_DB_V1";
-      const PENDING_AUDIO_STORE = "blobs";
 
       // ======= chống quá dung lượng (base64) =======
-      const MAX_DATAURL_CHARS = 28_000_000;
+      const MAX_DATAURL_CHARS = 28_000_000; // vượt ngưỡng => không gửi kiểu dataUrl
       const SMALL_BLOB_MAX = 4 * 1024 * 1024; // <= 4MB: gửi dataUrl; >4MB: dùng chunk upload
 
-      // ===== Countdown 8 minutes TOTAL for all 10 questions =====
-      const RECORD_LIMIT_SEC = 8 * 60;
-      let recordDeadlineTs = null;
-      let recordTimer = null;
-      let timeLocked = false;
-
-      // ===== Upload in progress flag (warn) =====
-      let uploadInProgress = false;
-
-      // ========== helpers ==========
-      function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-      function formatMMSS(sec){
-        sec = Math.max(0, Math.floor(sec));
-        const m = Math.floor(sec/60);
-        const s = sec % 60;
-        return String(m).padStart(2,'0') + ":" + String(s).padStart(2,'0');
-      }
-      function getRemainingSeconds(){
-        if (!recordDeadlineTs) return RECORD_LIMIT_SEC;
-        return Math.max(0, Math.floor((recordDeadlineTs - Date.now()) / 1000));
-      }
-      function lockByTimeUp(){
-        timeLocked = true;
-        try { pauseFullRecording(); } catch(e){}
-        isRecording = false;
-        startBtn.disabled = true;
-        stopBtn.disabled = true;
-        speakQuestionBtn.disabled = true;
-        statusEl.textContent = "⛔ Hết thời gian (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.";
-        alert("Hết thời gian làm bài (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
-      }
-      function tickTimer(){
-        const remain = getRemainingSeconds();
-        const txt = formatMMSS(remain);
-        timerText.textContent = txt;
-
-        if (timerInline) {
-          timerInline.textContent = txt;
-          timerInline.style.display = "inline-flex";
-        }
-
-        timerBox.style.display = "block";
-
-        if (remain <= 0) {
-          clearInterval(recordTimer);
-          recordTimer = null;
-          if (!timeLocked) lockByTimeUp();
-        }
-      }
-      function startCountdownIfNeeded(){
-        if (timeLocked) return;
-        if (!recordDeadlineTs) {
-          recordDeadlineTs = Date.now() + RECORD_LIMIT_SEC * 1000;
-          timerBox.style.display = "block";
-          tickTimer();
-          if (!recordTimer) recordTimer = setInterval(tickTimer, 250);
-        }
-      }
-
-      function pickSupportedMime() {
-        const candidates = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
-        if (!window.MediaRecorder) return "";
-        for (const t of candidates) {
-          try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {}
-        }
-        return "";
-      }
-
-      async function ensureMicStream() {
-        if (micStream) return micStream;
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        return micStream;
-      }
-
-      function allTenQuestionsRecorded() {
-        for (let i = 0; i < TOTAL_QUESTIONS; i++) if (!recordedFlags[i]) return false;
-        return true;
-      }
-
-      function blobToDataUrl(blob, cb) {
-        const fr = new FileReader();
-        fr.onload = () => cb(fr.result);
-        fr.onerror = () => cb(null);
-        fr.readAsDataURL(blob);
-      }
-
-      // ===================== IndexedDB helpers (store audio safely) =====================
-      function openPendingAudioDb() {
-        return new Promise((resolve, reject) => {
-          try {
-            const req = indexedDB.open(PENDING_AUDIO_DB, 1);
-            req.onupgradeneeded = () => {
-              const db = req.result;
-              if (!db.objectStoreNames.contains(PENDING_AUDIO_STORE)) {
-                db.createObjectStore(PENDING_AUDIO_STORE);
-              }
-            };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          } catch (e) { reject(e); }
-        });
-      }
-
-      async function idbSetBlob(key, blob) {
-        const db = await openPendingAudioDb();
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = db.transaction(PENDING_AUDIO_STORE, "readwrite");
-            tx.objectStore(PENDING_AUDIO_STORE).put(blob, key);
-            tx.oncomplete = () => { try { db.close(); } catch(e){} resolve(true); };
-            tx.onerror = () => { try { db.close(); } catch(e){} reject(tx.error); };
-          } catch (e) {
-            try { db.close(); } catch(_) {}
-            reject(e);
-          }
-        });
-      }
-
-      async function idbGetBlob(key) {
-        const db = await openPendingAudioDb();
-        return new Promise((resolve, reject) => {
-          try {
-            const tx = db.transaction(PENDING_AUDIO_STORE, "readonly");
-            const req = tx.objectStore(PENDING_AUDIO_STORE).get(key);
-            req.onsuccess = () => { try { db.close(); } catch(e){} resolve(req.result || null); };
-            req.onerror = () => { try { db.close(); } catch(e){} reject(req.error); };
-          } catch (e) {
-            try { db.close(); } catch(_) {}
-            reject(e);
-          }
-        });
-      }
-
-      async function idbDelBlob(key) {
-        const db = await openPendingAudioDb();
-        return new Promise((resolve) => {
-          try {
-            const tx = db.transaction(PENDING_AUDIO_STORE, "readwrite");
-            tx.objectStore(PENDING_AUDIO_STORE).delete(key);
-            tx.oncomplete = () => { try { db.close(); } catch(e){} resolve(true); };
-            tx.onerror = () => { try { db.close(); } catch(e){} resolve(false); };
-          } catch (e) {
-            try { db.close(); } catch(_) {}
-            resolve(false);
-          }
-        });
-      }
-
-      // ===================== CHUNK UPLOAD (NO-CORS) =====================
-      function uint8ToBase64(u8) {
-        let binary = "";
-        const chunk = 0x8000;
-        for (let i = 0; i < u8.length; i += chunk) {
-          binary += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
-        }
-        return btoa(binary);
-      }
-
-      async function uploadAudioInChunksNoCors(blob, mimeType, meta) {
-        const uploadId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-
-        const ua = navigator.userAgent || "";
-        const isIOS = /iPad|iPhone|iPod/.test(ua);
-        const chunkBytes = isIOS ? (200 * 1024) : (512 * 1024);
-        const total = Math.ceil(bytes.length / chunkBytes);
-
-        uploadProgress.style.display = "block";
-        progressBar.style.width = "0%";
-        progressPercent.textContent = "0%";
-        uploadInProgress = true;
-
-        const uploadChunkWithRetry = async (idx, b64, retries = 3) => {
-          for (let attempt = 0; attempt < retries; attempt++) {
-            try {
-              await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                keepalive: false,
-                body: JSON.stringify({
-                  action: "uploadChunk",
-                  uploadId,
-                  idx,
-                  total,
-                  mimeType,
-                  b64
-                })
-              });
-              return true;
-            } catch (err) {
-              if (attempt < retries - 1) await sleep(400 * (attempt + 1));
-            }
-          }
-          return false;
-        };
-
-        for (let idx = 0; idx < total; idx++) {
-          const start = idx * chunkBytes;
-          const end = Math.min(start + chunkBytes, bytes.length);
-          const part = bytes.subarray(start, end);
-          const b64 = uint8ToBase64(part);
-
-          const ok = await uploadChunkWithRetry(idx, b64);
-          if (!ok) {
-            uploadInProgress = false;
-            throw new Error(`Failed to upload chunk ${idx + 1}/${total}`);
-          }
-
-          const percent = Math.round(((idx + 1) / total) * 100);
-          progressBar.style.width = `${percent}%`;
-          progressPercent.textContent = `${percent}%`;
-          await sleep(80);
-        }
-
-        const finalizeWithRetry = async (retries = 3) => {
-          for (let attempt = 0; attempt < retries; attempt++) {
-            try {
-              await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                keepalive: false,
-                body: JSON.stringify({
-                  action: "finalizeUpload",
-                  uploadId,
-                  total,
-                  mimeType,
-                  ...meta
-                })
-              });
-              return { ok: true, uploadId, total };
-            } catch (err) {
-              if (attempt < retries - 1) await sleep(800 * (attempt + 1));
-            }
-          }
-          throw new Error("Failed to finalize upload after all retries");
-        };
-
-        const result = await finalizeWithRetry();
-        uploadInProgress = false;
-
-        setTimeout(() => { uploadProgress.style.display = "none"; }, 800);
-        return result;
-      }
-
-      // ===================== WAV FALLBACK (WebAudio) =====================
-      const WAV_TARGET_RATE = 16000;
-      let wavCtx = null;
-      let wavSource = null;
-      let wavProcessor = null;
-      let wavGain0 = null;
-      let wavPaused = true;
-      let wavBuffers = [];
-      let wavInputRate = 48000;
-
-      function downsampleBuffer(inputFloat32, inRate, outRate) {
-        if (outRate === inRate) return inputFloat32;
-        if (outRate > inRate) return inputFloat32;
-        const ratio = inRate / outRate;
-        const newLen = Math.round(inputFloat32.length / ratio);
-        const result = new Float32Array(newLen);
-        let offsetResult = 0;
-        let offsetBuffer = 0;
-        while (offsetResult < result.length) {
-          const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
-          let accum = 0, count = 0;
-          for (let i = offsetBuffer; i < nextOffsetBuffer && i < inputFloat32.length; i++) {
-            accum += inputFloat32[i];
-            count++;
-          }
-          result[offsetResult] = count ? (accum / count) : 0;
-          offsetResult++;
-          offsetBuffer = nextOffsetBuffer;
-        }
-        return result;
-      }
-
-      function floatTo16BitPCM(float32Array) {
-        const out = new Int16Array(float32Array.length);
-        for (let i = 0; i < float32Array.length; i++) {
-          let s = Math.max(-1, Math.min(1, float32Array[i]));
-          out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-        return out;
-      }
-
-      function encodeWav(int16Data, sampleRate) {
-        const buffer = new ArrayBuffer(44 + int16Data.length * 2);
-        const view = new DataView(buffer);
-        function writeString(offset, str){
-          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-        }
-        const numChannels = 1;
-        const bitsPerSample = 16;
-        const byteRate = sampleRate * numChannels * bitsPerSample / 8;
-        const blockAlign = numChannels * bitsPerSample / 8;
-        const dataSize = int16Data.length * 2;
-
-        writeString(0, "RIFF");
-        view.setUint32(4, 36 + dataSize, true);
-        writeString(8, "WAVE");
-        writeString(12, "fmt ");
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, numChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, byteRate, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, bitsPerSample, true);
-        writeString(36, "data");
-        view.setUint32(40, dataSize, true);
-
-        let offset = 44;
-        for (let i = 0; i < int16Data.length; i++, offset += 2) {
-          view.setInt16(offset, int16Data[i], true);
-        }
-        return new Blob([buffer], { type: "audio/wav" });
-      }
-
-      async function startWavRecordingIfNeeded() {
-        if (isFullRecordingStarted && recorderMode === "wav") return;
-        await ensureMicStream();
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) throw new Error("WebAudio not supported");
-        wavCtx = new AudioCtx({ latencyHint: "interactive" });
-        try { await wavCtx.resume(); } catch(e){}
-
-        wavInputRate = wavCtx.sampleRate || 48000;
-        wavBuffers = [];
-        wavPaused = true;
-
-        wavSource = wavCtx.createMediaStreamSource(micStream);
-        const bufferSize = 4096;
-        wavProcessor = wavCtx.createScriptProcessor(bufferSize, 1, 1);
-
-        wavGain0 = wavCtx.createGain();
-        wavGain0.gain.value = 0;
-
-        wavProcessor.onaudioprocess = (e) => {
-          if (wavPaused) return;
-          try {
-            const input = e.inputBuffer.getChannelData(0);
-            const down = downsampleBuffer(input, wavInputRate, WAV_TARGET_RATE);
-            const pcm16 = floatTo16BitPCM(down);
-            wavBuffers.push(pcm16);
-          } catch(err) {}
-        };
-
-        wavSource.connect(wavProcessor);
-        wavProcessor.connect(wavGain0);
-        wavGain0.connect(wavCtx.destination);
-
-        recorderMode = "wav";
-        audioMimeType = "audio/wav";
-        isFullRecordingStarted = true;
-      }
-
-      function stopWavRecording(cb) {
-        try { wavPaused = true; } catch(e){}
-        try { if (wavProcessor) wavProcessor.disconnect(); } catch(e){}
-        try { if (wavSource) wavSource.disconnect(); } catch(e){}
-        try { if (wavGain0) wavGain0.disconnect(); } catch(e){}
-
-        const chunks = wavBuffers || [];
-        let totalLen = 0;
-        for (const a of chunks) totalLen += a.length;
-
-        const merged = new Int16Array(totalLen);
-        let off = 0;
-        for (const a of chunks) { merged.set(a, off); off += a.length; }
-
-        const blob = encodeWav(merged, WAV_TARGET_RATE);
-
-        const ctxToClose = wavCtx;
-        wavCtx = null; wavSource = null; wavProcessor = null; wavGain0 = null;
-        wavBuffers = [];
-        if (ctxToClose) { try { ctxToClose.close(); } catch(e) {} }
-
-        cb && cb(blob);
-      }
-
-      // =================== MediaRecorder path ===================
-      let mediaRecorder = null;
-      let audioChunks = [];
-      let fullAudioBlob = null;
-
-      async function startMediaRecordingIfNeeded() {
-        if (isFullRecordingStarted && recorderMode === "media" && mediaRecorder) return;
-        if (!window.MediaRecorder) throw new Error("MediaRecorder not supported");
-        await ensureMicStream();
-
-        audioMimeType = pickSupportedMime() || "";
-        audioChunks = [];
-        fullAudioBlob = null;
-
-        mediaRecorder = new MediaRecorder(
-          micStream,
-          audioMimeType ? { mimeType: audioMimeType } : undefined
-        );
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) audioChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          try { fullAudioBlob = new Blob(audioChunks, { type: (audioMimeType || "audio/webm") }); } catch (e) {}
-        };
-
-        try { mediaRecorder.start(1000); } catch(e) { mediaRecorder.start(); }
-
-        recorderMode = "media";
-        isFullRecordingStarted = true;
-      }
-
-      // ========= unified control =========
-      async function startFullRecordingIfNeeded() {
-        try { await startMediaRecordingIfNeeded(); }
-        catch (e) { await startWavRecordingIfNeeded(); }
-      }
-
-      function pauseFullRecording() {
-        if (!isFullRecordingStarted) return;
-        if (recorderMode === "media" && mediaRecorder) {
-          if (mediaRecorder.state === "recording") { try { mediaRecorder.pause(); } catch(e){} }
-        } else if (recorderMode === "wav") {
-          wavPaused = true;
-        }
-      }
-
-      function resumeFullRecording() {
-        if (!isFullRecordingStarted) return;
-        if (recorderMode === "media" && mediaRecorder) {
-          if (mediaRecorder.state === "paused") { try { mediaRecorder.resume(); } catch(e){} }
-        } else if (recorderMode === "wav") {
-          wavPaused = false;
-        }
-      }
-
-      function stopFullRecording(cb) {
-        if (!isFullRecordingStarted) { cb && cb(null); return; }
-        if (recorderMode === "media" && mediaRecorder) {
-          try { mediaRecorder.requestData(); } catch(e){}
-          const prevOnStop = mediaRecorder.onstop;
-          mediaRecorder.onstop = () => {
-            try { fullAudioBlob = new Blob(audioChunks, { type: (audioMimeType || "audio/webm") }); } catch (e) {}
-            mediaRecorder.onstop = prevOnStop;
-            cb && cb(fullAudioBlob);
-          };
-          try { mediaRecorder.stop(); } catch (e) { cb && cb(null); }
-        } else if (recorderMode === "wav") {
-          stopWavRecording(cb);
-        } else {
-          cb && cb(null);
-        }
-      }
-
-      // ========= SpeechRecognition (TẮT) =========
-      let recognition = null;
-      function initSpeech() { recognition = null; }
-
-      // ========= iOS/Safari TTS English voice fix =========
-      let englishVoice = null;
-      let pendingSpeakText = null;
-
-      function selectEnglishVoice() {
-        if (!("speechSynthesis" in window)) return null;
-        const voices = window.speechSynthesis.getVoices();
-        if (!voices || !voices.length) return null;
-
-        const preferredNames = ["Samantha", "Karen", "Daniel", "Moira", "Serena", "Martha"];
-
-        let v =
-          voices.find(v => preferredNames.includes(v.name)) ||
-          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en-us")) ||
-          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en-gb")) ||
-          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en"));
-
-        englishVoice = v || null;
-        return englishVoice;
-      }
-
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.onvoiceschanged = function () {
-          const hadPending = !!pendingSpeakText;
-          selectEnglishVoice();
-          if (englishVoice && hadPending) {
-            const text = pendingSpeakText;
-            pendingSpeakText = null;
-            speakText(text);
-          }
-        };
-      }
-
-      function speakText(text) {
-        if (!("speechSynthesis" in window)) return;
-
-        pauseFullRecording();
-        window.speechSynthesis.cancel();
-
-        if (!englishVoice) {
-          const v = selectEnglishVoice();
-          if (!v) {
-            pendingSpeakText = text;
-            window.speechSynthesis.getVoices();
-            return;
-          }
-        }
-
-        const numberWords = {
-          "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
-          "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine", "10": "ten"
-        };
-        const processedText = text.replace(/Question\s+(\d+)/gi, (match, num) => {
-          const w = numberWords[num];
-          return w ? "Question " + w : match;
-        });
-
-        setTimeout(() => {
-          const langCode = englishVoice && englishVoice.lang ? englishVoice.lang : "en-US";
-          const u = new SpeechSynthesisUtterance(processedText);
-          u.lang = langCode;
-          u.rate = 0.9;
-          if (englishVoice) u.voice = englishVoice;
-          window.speechSynthesis.speak(u);
-
-          setTimeout(() => { resumeFullRecording(); }, 100);
-        }, 50);
-      }
-
-      // ======= in-app block =======
-      const ua = navigator.userAgent || navigator.vendor || window.opera;
-      const isInApp = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1 || ua.indexOf("Zalo") > -1;
-      if (isInApp) document.getElementById("inapp-overlay").style.display = "flex";
-
-      // ================== DỮ LIỆU KHỐI 6 ==================
+      /* ================== DỮ LIỆU KHỐI 6 ================== */
       const GRADES = [
         {
           id: "6",
           name: "Grade 6",
           topics: [
-            { id: "g6_my_new_school",      name: "My New School",               vn: "Ngôi trường mới của em" },
-            { id: "g6_my_house",           name: "My House",                    vn: "Ngôi nhà của em" },
-            { id: "g6_my_friends",         name: "My Friends",                  vn: "Những người bạn của em" },
-            { id: "g6_my_neighbourhood",   name: "My Neighbourhood",            vn: "Khu dân cư của em" },
-            { id: "g6_natural_wonders",    name: "Natural Wonders of Viet Nam", vn: "Các kỳ quan thiên nhiên của Việt Nam" },
-            { id: "g6_our_tet_holiday",    name: "Our Tet Holiday",             vn: "Kỳ nghỉ Tết của chúng tôi" },
-            { id: "g6_television",         name: "Television",                  vn: "Truyền hình" },
-            { id: "g6_sports_games",       name: "Sports and Games",            vn: "Thể thao và trò chơi" },
-            { id: "g6_cities_world",       name: "Cities of the World",         vn: "Các thành phố trên thế giới" },
-            { id: "g6_houses_future",      name: "Our Houses in the Future",    vn: "Ngôi nhà tương lai của chúng ta" },
-            { id: "g6_our_greener_world",  name: "Our Greener World",           vn: "Thế giới xanh hơn của chúng ta" },
-            { id: "g6_robots",             name: "Robots",                      vn: "Người máy / Rô-bốt" }
+            { id: "g6_my_new_school",     name: "My New School",             vn: "Ngôi trường mới của em" },
+            { id: "g6_my_house",          name: "My House",                  vn: "Ngôi nhà của em" },
+            { id: "g6_my_friends",        name: "My Friends",                vn: "Những người bạn của em" },
+            { id: "g6_my_neighbourhood",  name: "My Neighbourhood",          vn: "Khu dân cư của em" },
+            { id: "g6_natural_wonders",   name: "Natural Wonders of Viet Nam", vn: "Các kỳ quan thiên nhiên của Việt Nam" },
+            { id: "g6_our_tet_holiday",   name: "Our Tet Holiday",           vn: "Kỳ nghỉ Tết của chúng tôi" },
+            { id: "g6_television",        name: "Television",                vn: "Truyền hình" },
+            { id: "g6_sports_games",      name: "Sports and Games",          vn: "Thể thao và trò chơi" },
+            { id: "g6_cities_world",      name: "Cities of the World",       vn: "Các thành phố trên thế giới" },
+            { id: "g6_houses_future",     name: "Our Houses in the Future",  vn: "Ngôi nhà tương lai của chúng ta" },
+            { id: "g6_our_greener_world", name: "Our Greener World",         vn: "Thế giới xanh hơn của chúng ta" },
+            { id: "g6_robots",            name: "Robots",                    vn: "Người máy / Rô-bốt" }
           ]
         }
       ];
@@ -1101,166 +512,32 @@
         }
       };
 
-      /* ===================== SUGGESTED ANSWERS (GRADE 6) =====================
-       * - Q1–5,7–10: ~30–45 words (A1)
-       * - Q6: ~140–170 words (A1+), easy
-       */
-      const SUGGESTED_ANSWERS_6 = {
-        g6_my_new_school: {
-          1: "My school is Xuan Phu Lower Secondary School. It is a friendly place with many students. I like the school name because it sounds strong and easy to remember.",
-          2: "My school is in my hometown. It is near my house, so I can go there quickly. The area is quiet and safe for students.",
-          3: "My favourite teacher is my English teacher. She is kind and patient. She explains lessons clearly and always encourages me to speak English.",
-          4: "I like English the most. It helps me communicate with people and watch videos in English. I also enjoy learning new words and simple conversations.",
-          5: "I go to school by bicycle. It takes about ten minutes. Sometimes my parents take me by motorbike when it rains.",
-          6: "My new school is a lower secondary school in my hometown. The school is not too big, but it is clean and beautiful. There are many classrooms, a library, and a school yard where we play at break time. I study many subjects such as Maths, English, Literature, and Science. My teachers are friendly and helpful, so I feel comfortable in class. I have made some new friends, and we often study together after school. I like the English lessons because we can practise speaking and do fun activities. I also like the school rules because they help students be polite and responsible. I feel happy to learn in my new school, and I will try my best to become a good student.",
-          7: "At break time, I usually chat with my friends and play simple games. Sometimes I walk around the school yard. It helps me relax after studying.",
-          8: "Yes, I think school uniforms are important. They make students look equal and tidy. Uniforms also help us feel we belong to our school.",
-          9: "A good student is polite, hard-working, and honest. He or she listens to teachers and does homework on time. A good student also helps classmates when they need support.",
-          10:"I would like to have more English clubs and more interesting activities. I also want more trees in the school yard. That can make the school cooler and greener."
-        },
-
-        g6_my_house: {
-          1: "I live in a small town in Viet Nam. My house is in a quiet street. I like my place because it is peaceful and comfortable.",
-          2: "There are five rooms in my house: a living room, two bedrooms, a kitchen, and a bathroom. The rooms are simple but clean.",
-          3: "I like my bedroom the most. It is my private space to study and relax. I keep my books and some pictures there.",
-          4: "I live with my parents and my siblings. We usually have meals together. My family is small but very close.",
-          5: "At home, I often do homework and help my parents. In my free time, I read books or listen to music. Sometimes I watch cartoons.",
-          6: "My house is not very big, but it is warm and comfortable. There is a living room where my family watches TV together. The kitchen is small, but my mother cooks delicious food there. I have a bedroom to study and sleep. I keep my desk tidy and put my books on a shelf. My house is near my school, so I can go to school easily. I like the space in front of my house because I can sit there and enjoy fresh air in the afternoon. My family often clean the house at the weekend. I think a clean house makes us feel happy and healthy. I love my house because it is where my family lives and shares good moments every day.",
-          7: "It is important to keep the house clean because it can prevent diseases. A clean house also looks nice and comfortable. It helps family members feel relaxed.",
-          8: "I prefer living in a house because it is quiet and has more space. I can open windows and enjoy fresh air. It also feels warm and private.",
-          9: "My dream house would be bigger and brighter. It would have a small garden with flowers. I also want a study room and a smart TV.",
-          10:"I help my family by sweeping the floor and washing dishes. Sometimes I tidy my room and fold clothes. I also try to be polite and listen to my parents."
-        },
-
-        g6_my_friends: {
-          1: "My best friend is Lan. She is in my class and sits next to me. She is friendly and always smiles.",
-          2: "I met my best friend at school on the first day. We talked about our hobbies. After that, we became close friends.",
-          3: "We usually study together and share notes. Sometimes we play badminton after school. At weekends, we chat online.",
-          4: "I like my friends because they are kind and helpful. They listen to me and support me. We respect each other.",
-          5: "I see my friends every day at school. We also meet after school sometimes. I feel happy when I am with them.",
-          6: "I am lucky because I have some good friends at school. My best friend is friendly, honest, and hard-working. We often study together and help each other with homework. When I don’t understand a lesson, my friend explains it again in a simple way. We also have fun together at break time. We play games, talk about our favourite subjects, and share snacks. I think friendship is important because friends make us feel less lonely. They can encourage us when we are sad or tired. I always try to be a good friend too. I listen carefully, keep secrets, and say sorry when I make a mistake. I hope our friendship will last for a long time.",
-          7: "A good friend is kind and honest. He or she helps you when you have problems. A good friend also respects you and shares happy moments with you.",
-          8: "I think it is good to have a few close friends, not too many. Close friends understand you better. But having many friends can also help you learn new things.",
-          9: "When my friends have a problem, I listen to them first. I try to comfort them and give simple advice. If it is serious, I tell a teacher or parents.",
-          10:"Activities like group work, clubs, and sports help students make new friends. Students can talk more and cooperate. They can understand each other better."
-        },
-
-        g6_my_neighbourhood: {
-          1: "I live in a small town, not in a big city. My area is quiet and friendly. People know each other well.",
-          2: "My neighbourhood is clean and not too noisy. There are some small shops and many houses. I feel safe living here.",
-          3: "Near my house, there is a market and a pharmacy. There is also a small park. I often go there in the afternoon.",
-          4: "I often meet my neighbours and my friends. People usually say hello and smile. They are kind to my family.",
-          5: "I like the peaceful atmosphere the most. The streets are not crowded. It is a good place for students to study and rest.",
-          6: "I live in a small neighbourhood in my hometown. It is a quiet and friendly place. There are many houses, and people often greet each other when they meet. Near my house, there is a small market where my mother buys food every morning. There is also a park where children can play and do exercise. In the evening, many people walk around and talk with friends. I like my neighbourhood because it is safe and not too noisy. The streets are clean, and there are some trees, so the air is fresh. Sometimes my neighbours help my family, and my family also helps them. I think living in a good neighbourhood makes people feel happy and comfortable.",
-          7: "A good neighbourhood is clean, safe, and friendly. People respect each other and follow the rules. It should also have useful places like shops and parks.",
-          8: "Yes, students should help keep the neighbourhood clean. We can throw rubbish in bins and pick up litter. Small actions can make the area better.",
-          9: "People can make a neighbourhood safer by turning on street lights and keeping streets clean. They can also report bad activities. Neighbours should help each other.",
-          10:"I want more trees and more rubbish bins. I also want a bigger playground for children. These changes can improve our life."
-        },
-
-        g6_natural_wonders: {
-          1: "Yes, I have visited a beautiful beach before. I felt excited and relaxed. The view was amazing.",
-          2: "I know Ha Long Bay. It is famous for many islands and caves. Many tourists visit it every year.",
-          3: "I would like to visit Son Doong Cave one day. It looks huge and special. I want to see it with my own eyes.",
-          4: "I would go with my family or my best friends. Traveling together is fun. We can share good memories.",
-          5: "I feel happy and peaceful when I visit beautiful places. Nature makes me feel fresh. I enjoy taking photos too.",
-          6: "Viet Nam has many beautiful natural wonders. One famous place is Ha Long Bay. It is in Quang Ninh province and has thousands of small islands on the sea. The view is wonderful, especially in the early morning. Tourists can take a boat trip, visit caves, and enjoy fresh seafood. Another amazing natural wonder is Son Doong Cave. It is very large and has unique rocks and underground rivers. I think natural wonders are important because they show the beauty of our country. We should protect them by keeping the environment clean, not throwing rubbish, and following the rules when we travel. I hope more people will love nature and help protect these places for the future.",
-          7: "We should protect natural wonders because they are precious and beautiful. They also attract tourists and help local people. If we damage them, we cannot get them back.",
-          8: "Tourism can bring money and jobs, but it can also cause pollution. If tourists throw rubbish, nature becomes dirty. We need good rules to protect the environment.",
-          9: "Students can promote natural wonders by sharing information and photos. We can join clean-up activities and tell others not to litter. We can also learn about these places in school.",
-          10:"In the future, I want to explore more national parks and caves. I also want to visit mountains and islands. I think nature trips are exciting and meaningful."
-        },
-
-        g6_our_tet_holiday: {
-          1: "During Tet, I usually clean my house and decorate it. I also visit my relatives. Tet is a happy time for my family.",
-          2: "At Tet, I eat banh chung and many traditional dishes. I also eat sweets and fruits. The food is very delicious.",
-          3: "I visit my grandparents and my aunts and uncles. I say happy new year to them. I enjoy family gatherings.",
-          4: "I enjoy watching fireworks and receiving lucky money. I also like wearing new clothes. Tet activities are fun and exciting.",
-          5: "At Tet, I like getting lucky money the most. It makes me happy. I usually save it for school things.",
-          6: "Tet is the most important holiday in Viet Nam. Before Tet, my family clean the house and decorate it with flowers like peach blossoms or apricot blossoms. My mother cooks traditional food such as banh chung, spring rolls, and special meat dishes. On Tet days, I wear new clothes and visit my grandparents and relatives. We say “Happy New Year” and give good wishes. Children often receive lucky money in red envelopes. I like Tet because I can spend more time with my family and feel the warm atmosphere. Tet is also a time to start a new year with hope. I think we should keep Tet traditions because they are beautiful and show respect for our family and our culture.",
-          7: "Tet is important because it is a time for family reunion. People relax, visit relatives, and give good wishes. It also helps us remember our traditions.",
-          8: "People prepare for Tet by cleaning the house and buying new things. They cook traditional food and decorate with flowers. Many people also go shopping for Tet.",
-          9: "Children should be polite and greet adults at Tet. They should say thank you when receiving lucky money. They should also help parents with small tasks.",
-          10:"We can keep Tet traditions alive by celebrating them with our family. We should teach children about Tet customs. We can also share Tet stories and activities at school."
-        },
-
-        g6_television: {
-          1: "I watch TV a few times a week. I usually watch it after homework. I don’t watch too much because I also need to study.",
-          2: "My favourite programme is a cartoon show. It is funny and easy to understand. It helps me relax.",
-          3: "I usually watch TV with my family. We sit together in the living room. It is a good time to talk and laugh.",
-          4: "I watch TV about one hour a day. Sometimes I watch more at the weekend. I try to control my time.",
-          5: "I can learn new information from TV, such as science and animals. I also learn some English words. TV can be useful if we choose good programmes.",
-          6: "I usually watch TV in the evening after I finish my homework. I often watch for about one hour because I don’t want it to affect my studies. My favourite programmes are cartoons and educational shows. Cartoons help me relax, and educational programmes teach me new things about nature, science, or culture. Sometimes I watch the news with my parents to know what is happening. I think watching TV is good if we use it wisely. We should sit at a safe distance, not watch too late, and choose useful programmes. When I have free time at the weekend, I may watch a movie with my family. Watching TV together makes us closer and gives us something fun to talk about.",
-          7: "Watching TV can be good if students choose useful programmes. It helps them relax and learn new things. But watching too much is not good for health and study.",
-          8: "Students should watch educational programmes, cartoons with good messages, and news for children. These programmes can help students learn and improve language. They should avoid violent content.",
-          9: "We can use TV time wisely by setting a time limit. We should finish homework first. We can also watch English programmes to practise listening.",
-          10:"Yes, I think TV will change in the future. It may be smarter and more interactive. People may watch more online, not only on TV screens."
-        },
-
-        g6_sports_games: {
-          1: "I like badminton and football. They are fun and help me stay healthy. I feel happy when I play sports.",
-          2: "I play sports two or three times a week. I often play after school. It helps me relax and reduce stress.",
-          3: "I play sports with my friends and classmates. Sometimes I play with my family at the weekend. Playing together is more exciting.",
-          4: "I enjoy badminton the most. It is easy to play and very active. I can play it in the school yard.",
-          5: "Yes, I sometimes watch sports on TV, especially football matches. I like cheering for my favourite team. It is exciting.",
-          6: "My favourite sport is badminton. I like it because it is easy to play and very good for my health. I often play badminton with my friends after school. We usually play in the school yard or near my house. When I play badminton, I feel active and happy. It helps me become stronger and more flexible. I also learn how to cooperate and follow rules. Sometimes I watch badminton or football on TV to learn new skills and enjoy the games. I think sports are important for students because they help us stay healthy and study better. In the future, I want to practise more and play sports regularly.",
-          7: "Sports are important for students because they improve health and strength. They also help students relax. Sports can teach teamwork and discipline too.",
-          8: "Sports like running, badminton, and swimming help us stay healthy. They make our heart and muscles stronger. They also improve our mood.",
-          9: "Yes, students should play sports every day if possible. Even 15–30 minutes is good. It helps students have more energy and focus.",
-          10:"I would like to try swimming or basketball more often. These sports look fun and challenging. I think learning a new sport is exciting."
-        },
-
-        g6_cities_world: {
-          1: "I live in a small city in Viet Nam. It is not too crowded. People are friendly and life is peaceful.",
-          2: "I know some famous cities like Ha Noi, Ho Chi Minh City, Tokyo, and London. They are popular for culture and modern life. I learn about them from books and TV.",
-          3: "I would like to visit Tokyo. It looks modern and clean. I also want to see the beautiful places and try the food.",
-          4: "I would travel with my family. Traveling together is safer and more fun. We can share good memories.",
-          5: "When visiting a city, I like walking around and taking photos. I also enjoy trying local food. I like visiting famous landmarks too.",
-          6: "There are many interesting cities in the world. In Viet Nam, Ha Noi and Ho Chi Minh City are very famous. Ha Noi has many old streets and beautiful lakes. Ho Chi Minh City is busy and has many tall buildings and shopping centres. Around the world, I also know cities like Tokyo and London. These cities are modern and have many attractions for tourists. I like cities because they have convenient services, good schools, and many places to visit. However, some big cities are crowded and noisy. I think a good city should be clean, safe, and green. In the future, I hope I can visit a big city and learn more about different cultures.",
-          7: "A city is beautiful when it is clean and has many green trees. It should have nice buildings and good parks. People should also be friendly and polite.",
-          8: "Cities can become cleaner by putting more rubbish bins and collecting rubbish regularly. People should not litter. We can also plant more trees and reduce pollution.",
-          9: "People like living in big cities because there are more jobs and good schools. Cities also have convenient services like hospitals and shops. Life can be more exciting.",
-          10:"I would like to explore more cities in Viet Nam and in the world. I want to see different cultures and try new food. Traveling can help me learn a lot."
-        },
-
-        g6_houses_future: {
-          1: "My house now is simple and comfortable. It has enough rooms for my family. I feel safe living there.",
-          2: "In the future, I want my house to have a small garden and a big kitchen. I also want a bright study room. These things can make life better.",
-          3: "I would like my future house to be near the sea or in the countryside. The air is fresh there. It is also quiet and relaxing.",
-          4: "In the future, I want to live with my family. I want to take care of my parents. Living together makes us close.",
-          5: "I want smart lights and a smart TV in my future house. I also want a robot to help with cleaning. Technology can save time.",
-          6: "In the future, I think houses will be smarter and more convenient. My future house will be modern and comfortable. It will have a large living room and a bright bedroom. I also want a small garden with flowers and trees. In my future house, I want smart technology such as automatic lights and air conditioners. When it is hot, the air conditioner can turn on by itself. I also want a robot to help clean the floor and wash dishes. My future house will use solar energy to save electricity and protect the environment. I hope my house will be in a quiet place with fresh air, maybe in the countryside or near the sea. A good future house can help people live more comfortably and happily.",
-          7: "People want modern houses because they are comfortable and convenient. Modern houses can save time and energy. They can also be safer with smart systems.",
-          8: "Smart houses can help people control lights and temperature easily. They can also improve safety with cameras and alarms. Smart houses can save electricity too.",
-          9: "I think houses will have more smart devices in the future. They may use clean energy like solar power. Houses may also have robots to help with chores.",
-          10:"I would like to create a smart robot cleaner for my future home. It can clean the house quickly. It can help busy parents and students."
-        },
-
-        g6_our_greener_world: {
-          1: "I help the environment by not littering. I also save water and electricity. Small actions can make a difference.",
-          2: "Yes, I recycle at home sometimes. I separate plastic bottles and paper. Recycling can reduce rubbish.",
-          3: "I reuse plastic bags and some containers. I also reuse notebooks if they still have blank pages. Reusing helps save resources.",
-          4: "My parents and teachers teach me about protecting the environment. We also learn from TV and books. I try to follow their advice.",
-          5: "I enjoy planting trees and cleaning my room. I also like picking up litter in my neighbourhood. These activities make me feel useful.",
-          6: "I think everyone can do something to make the world greener. First, we should reduce rubbish by using fewer plastic bags and bottles. We can bring our own bottle and use a cloth bag when shopping. Second, we should reuse and recycle. For example, we can reuse paper and separate plastic, glass, and cans for recycling. Third, we should save energy by turning off lights and fans when we don’t use them. Saving water is also important. In addition, we can plant more trees because trees make the air cleaner and cooler. Students can join clean-up activities at school or in the neighbourhood. If many people do small actions every day, our world will become greener and healthier for the future.",
-          7: "Protecting the environment is important because it keeps our air and water clean. It also helps animals and plants. A clean environment makes people healthier.",
-          8: "Students can save energy by turning off lights and computers when not used. They can use fans instead of air conditioners. They can also study in natural light.",
-          9: "We can reduce pollution by using public transport and not burning rubbish. We should plant trees and keep streets clean. Factories should follow environmental rules too.",
-          10:"I want to start a habit of using less plastic. I will use a reusable bottle and bag. I will also remind my friends not to litter."
-        },
-
-        g6_robots: {
-          1: "Yes, I have seen robots on TV and in videos. They look interesting and modern. I want to see a real robot in the future.",
-          2: "Robots can clean the house and help people in factories. Some robots can teach or answer questions. Robots can also help in hospitals.",
-          3: "I would like to have a robot that can clean my room. It can sweep the floor and tidy my desk. It can save me time.",
-          4: "I use technology every day, such as a smartphone or a computer. I use it for learning and entertainment. I try not to use it too much.",
-          5: "I want a robot to help me do homework and learn English. It can explain words and practise speaking with me. That would be very useful.",
-          6: "Robots are becoming more popular in modern life. I think robots can help people in many ways. For example, robots can work in factories and do hard or dangerous jobs. At home, a robot can clean the floor, wash dishes, or help old people. In hospitals, robots can support doctors and nurses. In the future, I want to have a robot at home. It can help me do simple chores so I have more time to study and relax. However, I think people should use robots in a good way. Robots cannot replace love and care from humans. If we use robots wisely, they can make our life easier and more comfortable.",
-          7: "Robots can help people by doing difficult jobs and saving time. They can also work in dangerous places. This can protect humans and improve safety.",
-          8: "Yes, robots will be important in the future because technology is developing fast. Robots can support work at home and in factories. They can also help in education and health.",
-          9: "Robots are useful because they can work quickly and do repeated tasks. They can help people save time. They can also assist old people and disabled people.",
-          10:"Students should learn Science and Technology if they want to build robots. Maths is also important. Learning programming can help students control robots."
-        }
+      /* ===== GỢI Ý: 1 ĐOẠN A2 ~150 TỪ / CHỦ ĐỀ ===== */
+      const SUGGESTED_PARAGRAPHS_6 = {
+        g6_my_new_school:
+          "My new school is a lower secondary school in my hometown. It is not very big, but it is clean and beautiful. There are many classrooms with large windows, fans and new desks. In the school yard there are some trees, flowers and a small playground where we play at break time. I usually go to school by bike with my friends. My favourite teacher is my English teacher because she is kind, patient and always smiles. My favourite subject is English because I want to speak with foreigners in the future. At break time I often talk with my friends, play games or walk around the yard. I think wearing a school uniform is important because it makes students look tidy and equal. A good student should study hard, listen to teachers and help classmates. In the future I would like to have more trees and a bigger library in my school.",
+        g6_my_house:
+          "Sample 1 – My house in a town:\n\nI live in a small but comfortable house with my family in a quiet street near the town centre. Our house has a living room, a kitchen, two bedrooms and a bathroom. In the living room there is a sofa, a small table and a TV where we sit together in the evening. My favourite room is my bedroom because I can study and relax there. I share the house with my parents and my younger brother. At home I usually do homework, read books, watch TV and sometimes play games with my brother. It is very important to keep the house clean so that everyone is healthy and happy. We sweep the floor, wash the dishes and put things in the right place. My dream town house would be a little bigger, with a small balcony and a study room full of books.\n\nSample 2 – My house in the countryside:\n\nI live in a simple house in the countryside, in a small village with rice fields around. Our house has a tiled roof and a large yard in front where children can play and my family can dry rice or corn. Inside the house there is a living room, a kitchen and two or three bedrooms. My favourite place is the yard because I can ride my bike, play with my cousins and help my parents with outdoor work. I live with my grandparents, my parents and my brother, so the house is always busy and warm. At home I usually feed the chickens, water the vegetables and sweep the yard. Keeping the house and yard clean is important because there is a lot of dust from the road. In the future I would like to plant more trees and flowers around my countryside house to make it greener and more beautiful.",
+        g6_my_friends:
+          "I am lucky because I have some good friends at school. My best friend is the same age as me and we are in the same class. We first met in Grade 1 when we sat next to each other. We usually study together, play games at break time and talk about our hobbies. I like my friends because they are friendly, honest and funny. We often help one another with homework and share snacks. I see my friends every day at school and sometimes at the weekend. A good friend is someone who listens to you, keeps your secrets and stays with you when you are sad. I think it is not necessary to have many friends, but it is important to have some true friends. When my friends have a problem, I listen to them and try to give simple advice. School clubs, group projects and sports activities help students make new friends.",
+        g6_my_neighbourhood:
+          "Sample 1 – My neighbourhood in a town:\n\nI live in a small neighbourhood on the edge of a town. It is not very crowded, and there are many trees along the streets. Near my house there is a market, a small park, a pharmacy and a grocery store. I often meet neighbours when I go to the shop or ride my bike around. People in my neighbourhood are friendly and helpful. I like my neighbourhood because it is safe and quiet. A good neighbourhood should be clean, have good roads and kind people. Students should help keep their neighbourhood clean by not throwing rubbish on the street, joining clean-up days and reminding others to protect the environment. To make the area safer, people can follow traffic rules, use lights at night and watch out for strangers. In the future I would like to see more green trees, a bigger playground and better sidewalks for children to walk and play.\n\nSample 2 – My neighbourhood in the countryside:\n\nI live in a small village in the countryside. My neighbourhood is a quiet hamlet with simple houses and friendly neighbours. Around my home there are rice fields, gardens and small dirt roads instead of big streets. Near my house there is a village well, a small shop and a communal house where people meet on special days. I often see farmers working on the fields and children playing games in the yard. I like my neighbourhood because the air is fresh and people know each other very well. A good countryside neighbourhood should be clean, peaceful and safe for children. Students can help by keeping the lane in front of their house tidy, not throwing rubbish into the canal and joining village clean-up days. In the future I would like to have more trees along the village road and maybe a small playground for children in my hamlet.",
+        g6_natural_wonders:
+          "Viet Nam has many beautiful natural wonders that attract visitors from all over the world. One famous place is Ha Long Bay, with thousands of limestone islands rising from the blue sea. Another beautiful place is Phong Nha Cave with long caves and strange rock shapes. I have not visited many natural wonders yet, but I really want to go to Ha Long Bay with my family or close friends. When I visit beautiful places, I feel relaxed, happy and proud of my country. We should protect natural wonders because they are part of our national heritage. Too many tourists, rubbish and pollution can damage the environment. Students can help by not throwing trash, joining campaigns to protect nature and sharing photos of Viet Nam's beauty in a respectful way. In the future I would like to explore more natural wonders to learn about nature and take nice pictures.",
+        g6_our_tet_holiday:
+          "Tet is my favourite holiday in Viet Nam because it is a time for family and new beginnings. Before Tet, people clean the house, decorate it with flowers and buy new clothes. During Tet I usually help my parents prepare food and visit my relatives. We eat traditional dishes such as sticky rice cake, boiled chicken and pickled vegetables. I often visit my grandparents, aunts and uncles to wish them good health. The activities I enjoy most at Tet are receiving lucky money, watching fireworks and playing games with my cousins. Tet is very important in Viet Nam because families come together and people remember their ancestors. Children should follow customs such as greeting elders politely, speaking nicely and wearing clean clothes. To keep Tet traditions alive, we need to teach young people about the meaning of Tet and continue beautiful customs like family meals and visiting relatives.",
+        g6_television:
+          "I usually watch TV for about one or two hours a day, mostly in the evening after I finish my homework. My favourite TV programme is an educational show for children because I can learn new things in a fun way. I often watch TV with my family in the living room. From television I learn about the world, science, animals and other countries. Watching TV can be good for students if they choose the right programmes, such as news for children, science shows or English programmes. Students should avoid watching violent or scary films. We need to use TV time wisely by making a plan and not watching too long, so it does not affect our eyes and sleep. In the future television may be more modern, with better pictures and more interactive programmes, but I think reading books and doing outdoor activities will still be important.",
+        g6_sports_games:
+          "Sports and games are an important part of my life. I like playing football and badminton because they are fun and help me keep fit. I usually play sports two or three times a week with my classmates after school or at the weekend. Sometimes I also watch sports matches on TV with my father, especially football matches. My favourite game is football because I can run, pass the ball and work in a team. Sports are important for students because they make our bodies strong, reduce stress and teach us teamwork and fair play. Some sports that help us stay healthy are swimming, running and cycling. I think students should play sports every day, even for a short time. In the future I would like to try other sports such as basketball or table tennis to have more experiences and make new friends.",
+        g6_cities_world:
+          "I live in a small city in Viet Nam, but I also know some famous cities around the world such as London, Paris, Tokyo and New York from books and television. If I could choose one city to visit, I would like to go to Tokyo because it looks modern, clean and full of interesting technology. I would travel with my family so that we can enjoy the trip together. When visiting a city, I like walking around, trying local food, taking photos and visiting museums or parks. A beautiful city usually has clean streets, green parks, old and modern buildings and polite people. Cities can become cleaner if people use public transport, throw rubbish in the right place and plant more trees. Many people enjoy living in big cities because there are more schools, jobs and entertainment. In the future I hope to explore more cities to learn about different cultures.",
+        g6_houses_future:
+          "My house now is simple, with a few rooms and basic furniture, but it is warm and full of love. In the future I would like my house to be more modern and comfortable. I want it to have a bright living room, a study room with many books and maybe a small garden with flowers and vegetables. I would like my future house to be near a school or park and in a quiet area. I hope to live with my family so that we can support each other. In my future house I want some smart technology, for example lights that turn off automatically, a machine that cleans the floor and maybe a small robot that helps with housework. People want modern houses because they save time and make life easier. In the future houses may have solar panels, smart doors and better designs to protect the environment.",
+        g6_our_greener_world:
+          "I think everyone can do something to make the world greener. At home I try to turn off lights and fans when I do not use them, and I close the tap carefully to save water. My family sometimes recycles plastic bottles and paper, and we reuse old bags when we go to the market. I also keep my school desk clean and put rubbish into the bin. My teachers and parents teach me about protecting the environment and explain why it is important. Green activities I enjoy are planting trees, growing small plants in pots and joining clean-up days at school. Protecting the environment is important because we need clean air, water and land to live. Students can save energy by switching off electrical devices, walking or cycling for short distances and using both sides of paper. In the future I would like to start a habit of bringing my own bottle and reusable bag everywhere.",
+        g6_robots:
+          "I have seen robots in cartoons, on the Internet and sometimes in exhibitions. Robots can do many things such as cleaning the floor, cooking simple food, helping in factories and even playing with children. I would like to have a small robot that can help me do homework, remind me of my timetable and tidy my bedroom. I use technology every day when I study on the computer, use a smartphone or watch TV. In the future robots can help people by doing dangerous or boring jobs, like working in space or in deep water. Robots will probably be very important, but we still need humans to control them and make good decisions. The good things about robots are that they do not get tired and can work very exactly. Students who want to build robots should learn science, mathematics, programming and practice solving problems in a creative way."
       };
 
       /* ========== DOM ========== */
@@ -1284,10 +561,7 @@
       const uploadProgress = document.getElementById("uploadProgress");
       const progressBar = document.getElementById("progressBar");
       const progressPercent = document.getElementById("progressPercent");
-      const timerBox = document.getElementById("timerBox");
-      const timerText = document.getElementById("timerText");
-      const timerInline = document.getElementById("timerInline");
-      const leaveHint = document.getElementById("leaveHint");
+      const progressLabel = document.getElementById("progressLabel");
 
       const pendingBox = document.getElementById("pendingBox");
       const pendingInfo = document.getElementById("pendingInfo");
@@ -1295,138 +569,484 @@
       const clearPendingBtn = document.getElementById("clearPendingBtn");
 
       // ========== state ==========
+      let recognition = null;
       let isRecording = false;
       let ignore_onend = false;
 
       // ======= unified audio recorder =======
-      let recorderMode = "";          // "media" or "wav"
+      // mode: "media" (MediaRecorder) or "wav" (WebAudio fallback)
+      let recorderMode = "";
       let isFullRecordingStarted = false;
       let audioMimeType = "";
       let micStream = null;
 
+      // MediaRecorder
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let fullAudioBlob = null;
+
+      // WAV fallback recorder (WebAudio)
+      const WAV_TARGET_RATE = 16000;
+      let wavCtx = null;
+      let wavSource = null;
+      let wavProcessor = null;
+      let wavGain0 = null;
+      let wavPaused = true;
+      let wavBuffers = [];
+      let wavInputRate = 48000;
+
       // Bắt buộc đủ 10 câu
       let recordedFlags = new Array(TOTAL_QUESTIONS).fill(false);
 
-      // ======= question state =======
-      let questionTexts = new Array(TOTAL_QUESTIONS).fill("");
-      let answers = new Array(TOTAL_QUESTIONS).fill("");
-      let currentQuestionIndex = 0;
-      let hasCompletedTopic = false;
+      // ========== helpers ==========
+      function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-      // ===================== API CALL =====================
-      async function callScriptApiNoCors(action, payload) {
-        const body = JSON.stringify({ action, ...payload });
-        await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          redirect: "follow",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          keepalive: false,
-          body
-        });
-        return { ok: true, message: "Đã gửi yêu cầu. Vui lòng kiểm tra email GV để xác nhận." };
-      }
-
-      async function submitWithRetry(payload) {
-        let lastErr = null;
-        for (let i = 0; i < 2; i++) {
-          try {
-            const r = await callScriptApiNoCors("submitAll", payload);
-            if (r && r.ok) return { ok: true, r, channel: "no-cors" };
-            lastErr = new Error((r && r.message) ? r.message : "Request failed");
-          } catch (e) { lastErr = e; }
-          await sleep(600 * (i + 1));
+      function pickSupportedMime() {
+        const candidates = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+        if (!window.MediaRecorder) return "";
+        for (const t of candidates) {
+          try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (e) {}
         }
-        return { ok: false, error: lastErr };
+        return "";
       }
 
-      function savePending(payload) {
-        try {
-          const obj = { payload, savedAt: new Date().toISOString() };
-          localStorage.setItem(PENDING_KEY, JSON.stringify(obj));
-          showPendingBox();
-        } catch(e) {}
+      async function ensureMicStream() {
+        if (micStream) return micStream;
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return micStream;
       }
 
-      function clearPending() {
-        try { localStorage.removeItem(PENDING_KEY); } catch(e) {}
-        pendingBox.style.display = "none";
+      function allTenQuestionsRecorded() {
+        for (let i = 0; i < TOTAL_QUESTIONS; i++) if (!recordedFlags[i]) return false;
+        return true;
       }
 
-      function getPending() {
-        try {
-          const s = localStorage.getItem(PENDING_KEY);
-          if (!s) return null;
-          return JSON.parse(s);
-        } catch(e) { return null; }
+      function blobToDataUrl(blob, cb) {
+        const fr = new FileReader();
+        fr.onload = () => cb(fr.result);
+        fr.onerror = () => cb(null);
+        fr.readAsDataURL(blob);
       }
 
-      function showPendingBox() {
-        const p = getPending();
-        if (!p || !p.payload) { pendingBox.style.display = "none"; return; }
-        pendingBox.style.display = "block";
-        const dt = p.savedAt ? new Date(p.savedAt) : null;
-        const when = dt ? dt.toLocaleString("vi-VN") : "(unknown time)";
-        const payload = p.payload || {};
-        const name = payload.studentName || (payload.meta && payload.meta.studentName) || "";
-        const cls  = payload.studentClass || (payload.meta && payload.meta.studentClass) || "";
-        const mode = payload.__pendingMode || "normal";
-        pendingInfo.textContent = `Họ tên: ${name} | Lớp: ${cls} | Lưu lúc: ${when}` + (mode === "chunk" ? " | (Có kèm audio để gửi lại)" : "");
+      // ===================== CHUNK UPLOAD (FIX NO AUDIO & TIMEOUT) =====================
+      function uint8ToBase64(u8) {
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < u8.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+        }
+        return btoa(binary);
       }
 
-      async function resendPendingChunk(payload) {
-        const audioKey = payload.audioKey;
-        const mimeType = payload.mimeType || "audio/webm";
-        const meta = payload.meta || {};
-        if (!audioKey) throw new Error("Missing audioKey");
-        const blob = await idbGetBlob(audioKey);
-        if (!blob) throw new Error("Audio blob not found (IndexedDB)");
-        resultArea.textContent = "Đang gửi lại audio đã lưu...";
-        leaveHint.style.display = "block";
-        await uploadAudioInChunksNoCors(blob, mimeType, meta);
-        await idbDelBlob(audioKey);
-        clearPending();
-        resultArea.innerHTML = '<span class="status-ok">Đã gửi lại thành công (kèm audio)!</span>';
-      }
+      async function uploadAudioInChunksNoCors(blob, mimeType, meta, uploadStartTime) {
+        const uploadId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        const bytes = new Uint8Array(await blob.arrayBuffer());
 
-      resendPendingBtn.onclick = async () => {
-        const p = getPending();
-        if (!p || !p.payload) return;
+        // ~200KB per chunk (an toàn cho iPhone/iPad)
+        const chunkBytes = 200 * 1024;
+        const total = Math.ceil(bytes.length / chunkBytes);
 
-        resultArea.textContent = "Đang gửi lại bài đã lưu...";
-        resendPendingBtn.disabled = true;
-        clearPendingBtn.disabled = true;
+        // Show progress
+        uploadProgress.style.display = "block";
+        progressBar.style.width = "0%";
+        progressPercent.textContent = "0%";
+        progressLabel.textContent = "Đang tải lên...";
 
-        try {
-          if (p.payload.__pendingMode === "chunk") {
-            await resendPendingChunk(p.payload);
-          } else {
-            const out = await submitWithRetry(p.payload);
-            if (out.ok) {
-              clearPending();
-              resultArea.innerHTML = '<span class="status-ok">Đã gửi lại. Vui lòng kiểm tra email GV.</span>';
-            } else {
-              resultArea.innerHTML = '<span class="status-error">Chưa xác nhận được. Vui lòng thử lại khi mạng ổn định.</span>';
+        // Retry function
+        const uploadChunkWithRetry = async (idx, part, b64, retries = 3) => {
+          for (let attempt = 0; attempt < retries; attempt++) {
+            // Check timeout in loop
+            if (Date.now() - uploadStartTime > UPLOAD_TIMEOUT_MS) {
+                throw new Error("TIMEOUT");
+            }
+            try {
+              await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                  action: "uploadChunk",
+                  uploadId,
+                  idx,
+                  total,
+                  mimeType,
+                  b64
+                })
+              });
+              return true;
+            } catch (err) {
+              console.log(`Chunk ${idx} attempt ${attempt + 1} failed:`, err);
+              if (attempt < retries - 1) {
+                await sleep(500 * (attempt + 1));
+              }
             }
           }
+          return false;
+        };
+
+        // Upload chunks
+        for (let idx = 0; idx < total; idx++) {
+           // Check timeout again
+           if (Date.now() - uploadStartTime > UPLOAD_TIMEOUT_MS) {
+                throw new Error("TIMEOUT");
+           }
+
+          const start = idx * chunkBytes;
+          const end = Math.min(start + chunkBytes, bytes.length);
+          const part = bytes.subarray(start, end);
+          const b64 = uint8ToBase64(part);
+
+          const success = await uploadChunkWithRetry(idx, part, b64);
+          if (!success) {
+            throw new Error(`Failed to upload chunk ${idx + 1}/${total}`);
+          }
+
+          // Update progress
+          const percent = Math.round(((idx + 1) / total) * 100);
+          progressBar.style.width = `${percent}%`;
+          progressPercent.textContent = `${percent}%`;
+
+          await sleep(300);
+        }
+
+        // Finalize with retry
+        const finalizeWithRetry = async (retries = 3) => {
+          for (let attempt = 0; attempt < retries; attempt++) {
+            if (Date.now() - uploadStartTime > UPLOAD_TIMEOUT_MS) {
+                throw new Error("TIMEOUT");
+            }
+            try {
+              await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({
+                  action: "finalizeUpload",
+                  uploadId,
+                  total,
+                  mimeType,
+                  ...meta
+                })
+              });
+              return { ok: true, uploadId, total };
+            } catch (err) {
+              console.log(`Finalize attempt ${attempt + 1} failed:`, err);
+              if (attempt < retries - 1) {
+                await sleep(1000 * (attempt + 1));
+              }
+            }
+          }
+          throw new Error("Failed to finalize upload after all retries");
+        };
+
+        const result = await finalizeWithRetry();
+        
+        // Hide progress after delay
+        setTimeout(() => {
+          uploadProgress.style.display = "none";
+        }, 1000);
+        
+        return result;
+      }
+
+      // ===================== WAV FALLBACK (WebAudio) =====================
+      function downsampleBuffer(inputFloat32, inRate, outRate) {
+        if (outRate === inRate) return inputFloat32;
+        if (outRate > inRate) return inputFloat32;
+
+        const ratio = inRate / outRate;
+        const newLen = Math.round(inputFloat32.length / ratio);
+        const result = new Float32Array(newLen);
+
+        let offsetResult = 0;
+        let offsetBuffer = 0;
+
+        while (offsetResult < result.length) {
+          const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+          let accum = 0, count = 0;
+          for (let i = offsetBuffer; i < nextOffsetBuffer && i < inputFloat32.length; i++) {
+            accum += inputFloat32[i];
+            count++;
+          }
+          result[offsetResult] = count ? (accum / count) : 0;
+          offsetResult++;
+          offsetBuffer = nextOffsetBuffer;
+        }
+        return result;
+      }
+
+      function floatTo16BitPCM(float32Array) {
+        const out = new Int16Array(float32Array.length);
+        for (let i = 0; i < float32Array.length; i++) {
+          let s = Math.max(-1, Math.min(1, float32Array[i]));
+          out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return out;
+      }
+
+      function encodeWav(int16Data, sampleRate) {
+        const buffer = new ArrayBuffer(44 + int16Data.length * 2);
+        const view = new DataView(buffer);
+
+        function writeString(offset, str){
+          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        }
+
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+        const blockAlign = numChannels * bitsPerSample / 8;
+        const dataSize = int16Data.length * 2;
+
+        writeString(0, "RIFF");
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(8, "WAVE");
+        writeString(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, byteRate, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, bitsPerSample, true);
+        writeString(36, "data");
+        view.setUint32(40, dataSize, true);
+
+        let offset = 44;
+        for (let i = 0; i < int16Data.length; i++, offset += 2) {
+          view.setInt16(offset, int16Data[i], true);
+        }
+        return new Blob([buffer], { type: "audio/wav" });
+      }
+
+      async function startWavRecordingIfNeeded() {
+        if (isFullRecordingStarted && recorderMode === "wav") return;
+
+        await ensureMicStream();
+
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) throw new Error("WebAudio not supported");
+
+        wavCtx = new AudioCtx({ latencyHint: "interactive" });
+        try { await wavCtx.resume(); } catch(e){}
+
+        wavInputRate = wavCtx.sampleRate || 48000;
+        wavBuffers = [];
+        wavPaused = true;
+
+        wavSource = wavCtx.createMediaStreamSource(micStream);
+
+        const bufferSize = 4096;
+        wavProcessor = wavCtx.createScriptProcessor(bufferSize, 1, 1);
+
+        wavGain0 = wavCtx.createGain();
+        wavGain0.gain.value = 0;
+
+        wavProcessor.onaudioprocess = (e) => {
+          if (wavPaused) return;
+          try {
+            const input = e.inputBuffer.getChannelData(0);
+            const down = downsampleBuffer(input, wavInputRate, WAV_TARGET_RATE);
+            const pcm16 = floatTo16BitPCM(down);
+            wavBuffers.push(pcm16);
+          } catch(err) {
+            console.log("WAV process error", err);
+          }
+        };
+
+        wavSource.connect(wavProcessor);
+        wavProcessor.connect(wavGain0);
+        wavGain0.connect(wavCtx.destination);
+
+        recorderMode = "wav";
+        audioMimeType = "audio/wav";
+        isFullRecordingStarted = true;
+      }
+
+      function stopWavRecording(cb) {
+        try { wavPaused = true; } catch(e){}
+        try { if (wavProcessor) wavProcessor.disconnect(); } catch(e){}
+        try { if (wavSource) wavSource.disconnect(); } catch(e){}
+        try { if (wavGain0) wavGain0.disconnect(); } catch(e){}
+
+        const chunks = wavBuffers || [];
+        let totalLen = 0;
+        for (const a of chunks) totalLen += a.length;
+
+        const merged = new Int16Array(totalLen);
+        let off = 0;
+        for (const a of chunks) { merged.set(a, off); off += a.length; }
+
+        const blob = encodeWav(merged, WAV_TARGET_RATE);
+
+        const ctxToClose = wavCtx;
+        wavCtx = null; wavSource = null; wavProcessor = null; wavGain0 = null;
+        wavBuffers = [];
+        if (ctxToClose) { try { ctxToClose.close(); } catch(e) {} }
+
+        cb && cb(blob);
+      }
+
+      // =================== MediaRecorder path ===================
+      async function startMediaRecordingIfNeeded() {
+        if (isFullRecordingStarted && recorderMode === "media" && mediaRecorder) return;
+
+        if (!window.MediaRecorder) throw new Error("MediaRecorder not supported");
+        await ensureMicStream();
+
+        audioMimeType = pickSupportedMime() || "";
+        audioChunks = [];
+        fullAudioBlob = null;
+
+        mediaRecorder = new MediaRecorder(
+          micStream,
+          audioMimeType ? { mimeType: audioMimeType } : undefined
+        );
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          try { fullAudioBlob = new Blob(audioChunks, { type: audioMimeType || "audio/webm" }); } catch (e) {}
+        };
+
+        // timeslice giúp mobile/Opera ổn định
+        try { mediaRecorder.start(1000); } catch(e) { mediaRecorder.start(); }
+
+        recorderMode = "media";
+        isFullRecordingStarted = true;
+      }
+
+      // ========= unified control =========
+      async function startFullRecordingIfNeeded() {
+        try {
+          await startMediaRecordingIfNeeded();
         } catch (e) {
-          resultArea.innerHTML = '<span class="status-error">Chưa xác nhận được. Vui lòng thử lại khi mạng ổn định.</span>';
+          await startWavRecordingIfNeeded();
+        }
+      }
+
+      function pauseFullRecording() {
+        if (!isFullRecordingStarted) return;
+        if (recorderMode === "media" && mediaRecorder) {
+          if (mediaRecorder.state === "recording") { try { mediaRecorder.pause(); } catch(e){} }
+        } else if (recorderMode === "wav") {
+          wavPaused = true;
+        }
+      }
+
+      function resumeFullRecording() {
+        if (!isFullRecordingStarted) return;
+        if (recorderMode === "media" && mediaRecorder) {
+          if (mediaRecorder.state === "paused") { try { mediaRecorder.resume(); } catch(e){} }
+        } else if (recorderMode === "wav") {
+          wavPaused = false;
+        }
+      }
+
+      function stopFullRecording(cb) {
+        if (!isFullRecordingStarted) { cb && cb(null); return; }
+        if (recorderMode === "media" && mediaRecorder) {
+          try { mediaRecorder.requestData(); } catch(e){}
+          const prevOnStop = mediaRecorder.onstop;
+          mediaRecorder.onstop = () => {
+            try { fullAudioBlob = new Blob(audioChunks, { type: audioMimeType || "audio/webm" }); } catch (e) {}
+            mediaRecorder.onstop = prevOnStop;
+            cb && cb(fullAudioBlob);
+          };
+          try { mediaRecorder.stop(); } catch (e) { cb && cb(null); }
+        } else if (recorderMode === "wav") {
+          stopWavRecording(cb);
+        } else {
+          cb && cb(null);
+        }
+      }
+
+      // ========= SpeechRecognition (TẮT HOÀN TOÀN) =========
+      function initSpeech() {
+        // Tắt hoàn toàn speech recognition
+        recognition = null;
+        return;
+      }
+
+      // ========= iOS/Safari TTS English voice fix =========
+      let englishVoice = null;
+      let pendingSpeakText = null;
+
+      function selectEnglishVoice() {
+        if (!("speechSynthesis" in window)) return null;
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices || !voices.length) return null;
+
+        const preferredNames = ["Samantha", "Karen", "Daniel", "Moira", "Serena", "Martha"];
+
+        let v =
+          voices.find(v => preferredNames.includes(v.name)) ||
+          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en-us")) ||
+          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en-gb")) ||
+          voices.find(v => v.lang && v.lang.toLowerCase().startsWith("en"));
+
+        englishVoice = v || null;
+        return englishVoice;
+      }
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = function () {
+          const hadPending = !!pendingSpeakText;
+          selectEnglishVoice();
+          if (englishVoice && hadPending) {
+            const text = pendingSpeakText;
+            pendingSpeakText = null;
+            speakText(text);
+          }
+        };
+      }
+
+      function speakText(text) {
+        if (!("speechSynthesis" in window)) return;
+
+        // Pause recording while speaking
+        pauseFullRecording();
+        window.speechSynthesis.cancel();
+
+        if (!englishVoice) {
+          const v = selectEnglishVoice();
+          if (!v) {
+            pendingSpeakText = text;
+            window.speechSynthesis.getVoices();
+            return;
+          }
         }
 
-        resendPendingBtn.disabled = false;
-        clearPendingBtn.disabled = false;
-      };
+        const numberWords = {
+          "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+          "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine", "10": "ten"
+        };
+        const processedText = text.replace(/Question\s+(\d+)/gi, (match, num) => {
+          const w = numberWords[num];
+          return w ? "Question " + w : match;
+        });
 
-      clearPendingBtn.onclick = () => {
-        if (!confirm("Xóa bài lưu chưa gửi?")) return;
-        const p = getPending();
-        if (p && p.payload && p.payload.__pendingMode === "chunk" && p.payload.audioKey) {
-          idbDelBlob(p.payload.audioKey).catch(()=>{});
-        }
-        clearPending();
-      };
+        setTimeout(() => {
+          const langCode = englishVoice && englishVoice.lang ? englishVoice.lang : "en-US";
+          const u = new SpeechSynthesisUtterance(processedText);
+          u.lang = langCode;
+          u.rate = 0.9;
+          if (englishVoice) u.voice = englishVoice;
+          window.speechSynthesis.speak(u);
+          
+          // Resume recording after speaking
+          setTimeout(() => {
+            resumeFullRecording();
+          }, 100);
+        }, 50);
+      }
 
-      showPendingBox();
+      // ======= in-app block =======
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isInApp = ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1 || ua.indexOf("Zalo") > -1;
+      if (isInApp) document.getElementById("inapp-overlay").style.display = "flex";
 
       // ======= init selects =======
       GRADES.forEach((g) => {
@@ -1449,6 +1069,12 @@
         }
       }
 
+      // ======= question state =======
+      let questionTexts = new Array(TOTAL_QUESTIONS).fill("");
+      let answers = new Array(TOTAL_QUESTIONS).fill("");
+      let currentQuestionIndex = 0;
+      let hasCompletedTopic = false;
+
       function resetTopicState() {
         questionTexts = new Array(TOTAL_QUESTIONS).fill("");
         answers = new Array(TOTAL_QUESTIONS).fill("");
@@ -1457,23 +1083,11 @@
         suggestBtn.disabled = true;
         suggestionsArea.textContent = "";
         answerText.value = "";
+
         sendBtn.disabled = false;
+
         statusEl.textContent = 'Nhấn "Bắt đầu nói" để trả lời.';
         recordedFlags = new Array(TOTAL_QUESTIONS).fill(false);
-
-        timeLocked = false;
-        recordDeadlineTs = null;
-        if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
-        timerText.textContent = "08:00";
-        timerBox.style.display = "none";
-        if (timerInline) {
-          timerInline.textContent = "08:00";
-          timerInline.style.display = "none";
-        }
-
-        speakQuestionBtn.disabled = false;
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
       }
 
       function renderQuestions() {
@@ -1511,10 +1125,9 @@
             if ("speechSynthesis" in window) window.speechSynthesis.cancel();
             isRecording = false;
             ignore_onend = true;
-
-            startBtn.disabled = timeLocked ? true : false;
+            startBtn.disabled = false;
             stopBtn.disabled = true;
-            statusEl.textContent = timeLocked ? "⛔ Hết thời gian (8 phút cho tổng 10 câu)." : 'Nhấn "Bắt đầu nói" để trả lời.';
+            statusEl.textContent = 'Nhấn "Bắt đầu nói" để trả lời.';
           };
 
           questionList.appendChild(div);
@@ -1526,7 +1139,6 @@
       gradeSelect.onchange = () => { updateTopics(); resetTopicState(); renderQuestions(); };
       topicSelect.onchange = () => { resetTopicState(); renderQuestions(); };
       partSelect.onchange = renderQuestions;
-
       updateTopics();
       renderQuestions();
 
@@ -1534,23 +1146,97 @@
       showTextBtn.onclick = () => { questionTextContainer.style.display = "block"; };
       speakQuestionBtn.onclick = () => { speakText(questionTextarea.value); };
 
+      // ===================== API CALL =====================
+      async function callScriptApiNoCors(action, payload) {
+        const body = JSON.stringify({ action, ...payload });
+        await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          redirect: "follow",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body
+        });
+        return { ok: true, message: "Đã gửi yêu cầu. Vui lòng kiểm tra email GV để xác nhận." };
+      }
+
+      async function submitWithRetry(payload) {
+        let lastErr = null;
+        for (let i = 0; i < 2; i++) {
+          try {
+            const r = await callScriptApiNoCors("submitAll", payload);
+            if (r && r.ok) return { ok: true, r, channel: "no-cors" };
+            lastErr = new Error((r && r.message) ? r.message : "Request failed");
+          } catch (e) {
+            lastErr = e;
+          }
+          await sleep(600 * (i + 1));
+        }
+        return { ok: false, error: lastErr };
+      }
+
+      function savePending(payload) {
+        try {
+          const obj = { payload, savedAt: new Date().toISOString() };
+          localStorage.setItem(PENDING_KEY, JSON.stringify(obj));
+          showPendingBox();
+        } catch(e) {}
+      }
+
+      function clearPending() {
+        try { localStorage.removeItem(PENDING_KEY); } catch(e) {}
+        pendingBox.style.display = "none";
+      }
+
+      function getPending() {
+        try {
+          const s = localStorage.getItem(PENDING_KEY);
+          if (!s) return null;
+          return JSON.parse(s);
+        } catch(e) { return null; }
+      }
+
+      function showPendingBox() {
+        const p = getPending();
+        if (!p) { pendingBox.style.display = "none"; return; }
+        pendingBox.style.display = "block";
+        const dt = p.savedAt ? new Date(p.savedAt) : null;
+        const when = dt ? dt.toLocaleString("vi-VN") : "(unknown time)";
+        const name = p.payload && p.payload.studentName ? p.payload.studentName : "";
+        const cls = p.payload && p.payload.studentClass ? p.payload.studentClass : "";
+        pendingInfo.textContent = `Họ tên: ${name} | Lớp: ${cls} | Lưu lúc: ${when}`;
+      }
+
+      resendPendingBtn.onclick = async () => {
+        const p = getPending();
+        if (!p || !p.payload) return;
+        resultArea.textContent = "Đang gửi lại bài đã lưu...";
+        resendPendingBtn.disabled = true;
+        clearPendingBtn.disabled = true;
+
+        const out = await submitWithRetry(p.payload);
+        resendPendingBtn.disabled = false;
+        clearPendingBtn.disabled = false;
+
+        if (out.ok) {
+          clearPending();
+          resultArea.innerHTML = '<span class="status-ok">Đã gửi lại thành công!</span>';
+        } else {
+          resultArea.innerHTML = '<span class="status-error">Gửi lại thất bại. Vui lòng thử lại khi mạng ổn định.</span>';
+        }
+      };
+
+      clearPendingBtn.onclick = () => {
+        if (!confirm("Xóa bài lưu chưa gửi?")) return;
+        clearPending();
+      };
+
+      showPendingBox();
+
       // ===================== Start/Stop speaking =====================
       startBtn.onclick = async () => {
-        if (timeLocked) {
-          alert("Hết thời gian (8 phút cho tổng 10 câu). Bạn không thể trả lời thêm.");
-          return;
-        }
-        if (getRemainingSeconds() <= 0) {
-          lockByTimeUp();
-          return;
-        }
-
-        startCountdownIfNeeded();
-
         try {
           await startFullRecordingIfNeeded();
           resumeFullRecording();
-
           recordedFlags[currentQuestionIndex] = true;
 
           if (recorderMode === "wav") {
@@ -1559,11 +1245,13 @@
             statusEl.textContent = "Đang ghi âm... Nói to và rõ.";
           }
         } catch (err) {
+          console.log(err);
           recordedFlags[currentQuestionIndex] = true;
           statusEl.textContent = "Không thể khởi tạo ghi âm. Vui lòng kiểm tra quyền Microphone.";
           return;
         }
 
+        // Chỉ set trạng thái ghi âm, không bật speech recognition
         isRecording = true;
         startBtn.disabled = true;
         stopBtn.disabled = false;
@@ -1571,8 +1259,6 @@
       };
 
       stopBtn.onclick = () => {
-        if (timeLocked) return;
-
         isRecording = false;
         ignore_onend = true;
 
@@ -1616,14 +1302,13 @@
             }
           }
 
-          startBtn.disabled = timeLocked ? true : false;
+          startBtn.disabled = false;
           stopBtn.disabled = true;
         }, 1200);
       };
 
       clearBtn.onclick = () => {
         if (!confirm("Bạn muốn xóa hết nội dung vừa nói để làm lại?")) return;
-
         isRecording = false;
         ignore_onend = true;
 
@@ -1633,7 +1318,7 @@
         sendBtn.disabled = false;
 
         statusEl.textContent = "Đã xóa. Nhấn Bắt đầu nói để làm lại.";
-        startBtn.disabled = timeLocked ? true : false;
+        startBtn.disabled = false;
         stopBtn.disabled = true;
 
         hasCompletedTopic = false;
@@ -1643,7 +1328,7 @@
         recordedFlags[currentQuestionIndex] = false;
       };
 
-      // ===================== SEND (NO MP3, compatible Code.gs) =====================
+      // ===================== SEND (FIX AUDIO LOST & TIMEOUT) =====================
       sendBtn.onclick = () => {
         let currentAns = answerText.value.trim();
         if (currentAns) {
@@ -1678,10 +1363,9 @@
         sendBtn.disabled = true;
         resultArea.textContent = "Đang xử lý audio...";
         pauseFullRecording();
-        leaveHint.style.display = "block";
 
-        const sendTranscriptOnly = async () => {
-          resultArea.textContent = "Đang nộp bài (không có audio)...";
+        const sendTranscriptOnly = async (customMsg) => {
+          resultArea.textContent = "Đang gửi transcript (bảo lưu kết quả)...";
           const payload = {
             studentName: n, studentClass: c, topicLabel,
             questionSummary, transcript: fullTranscript,
@@ -1691,44 +1375,46 @@
           sendBtn.disabled = false;
 
           if (out.ok) {
-            resultArea.innerHTML = '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV.</span>';
+            resultArea.innerHTML = customMsg || '<span class="status-warning">⚠️ Mạng yếu/Lỗi Audio. Đã tự động nộp bài Transcript (không có file ghi âm) để đảm bảo không mất bài.</span>';
           } else {
             savePending(payload);
-            resultArea.innerHTML = '<span class="status-error">Trình duyệt chưa xác nhận được việc nộp bài. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
+            resultArea.innerHTML = '<span class="status-error">Gửi thất bại do lỗi mạng. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu".</span>';
           }
         };
 
         if (!isFullRecordingStarted) {
-          sendTranscriptOnly();
+          sendTranscriptOnly('<span class="status-ok">Đã gửi transcript (không có audio).</span>');
           return;
         }
 
         stopFullRecording((blob) => {
+          const uploadStartTime = Date.now();
+          
           (async () => {
             try {
               if (!blob || !blob.size) {
-                sendBtn.disabled = false;
-                resultArea.innerHTML = '<span class="status-error">Không tạo được file ghi âm. Vui lòng thử lại.</span>';
-                return;
+                 sendBtn.disabled = false;
+                 resultArea.innerHTML = '<span class="status-error">Không tạo được file ghi âm. Vui lòng thử lại.</span>';
+                 return;
               }
 
-              const finalBlob = blob;
-              const mime = (finalBlob.type || audioMimeType || "audio/webm");
-              const sizeMB = (finalBlob.size / (1024 * 1024)).toFixed(2);
+              const mime = blob.type || audioMimeType || "audio/webm";
+              const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
 
               // 1) Blob nhỏ: gửi dataUrl
-              if (finalBlob.size <= SMALL_BLOB_MAX) {
-                resultArea.textContent = `Audio ${sizeMB}MB: đang chuẩn bị gửi...`;
+              if (blob.size <= SMALL_BLOB_MAX) {
+                resultArea.textContent = `Audio ${sizeMB}MB: đang chuyển đổi...`;
+                const dataUrl = await new Promise((resolve) => {
+                  blobToDataUrl(blob, resolve);
+                });
 
-                const dataUrl = await new Promise((resolve) => { blobToDataUrl(finalBlob, resolve); });
                 if (!dataUrl) {
-                  sendBtn.disabled = false;
-                  resultArea.innerHTML = '<span class="status-error">Lỗi chuyển đổi audio. Vui lòng thử lại.</span>';
-                  return;
+                  throw new Error("Conversion failed");
                 }
 
                 let finalDataUrl = dataUrl;
                 let finalMime = mime;
+
                 if (finalDataUrl.length > MAX_DATAURL_CHARS) {
                   finalDataUrl = "";
                   finalMime = "";
@@ -1742,104 +1428,68 @@
                   dataUrl: finalDataUrl
                 };
 
-                if (finalDataUrl) savePending(payload);
-
                 resultArea.textContent = finalDataUrl
                   ? "Đang nộp bài (audio + transcript)..."
-                  : "Audio quá lớn (base64). Đang nộp bài (không kèm audio)...";
+                  : "Audio quá lớn (base64). Đang nộp transcript...";
+
+                // Check timeout before sending final request
+                 if (Date.now() - uploadStartTime > UPLOAD_TIMEOUT_MS) throw new Error("TIMEOUT");
 
                 const out = await submitWithRetry(payload);
                 sendBtn.disabled = false;
 
                 if (out.ok) {
-                  clearPending();
                   resultArea.innerHTML = finalDataUrl
-                    ? '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV (sẽ có link audio).</span>'
-                    : '<span class="status-ok">Đã gửi yêu cầu (không kèm audio). Vui lòng kiểm tra email GV.</span>';
+                    ? '<span class="status-ok">Đã nộp thành công (kèm audio)!</span>'
+                    : '<span class="status-ok">Đã nộp transcript (audio quá lớn nên không gửi kèm).</span>';
                 } else {
                   savePending(payload);
-                  resultArea.innerHTML = '<span class="status-error">Trình duyệt chưa xác nhận được việc nộp bài. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
+                  resultArea.innerHTML = '<span class="status-error">Nộp bài thất bại do lỗi mạng. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu".</span>';
                 }
                 return;
               }
 
-              // 2) Blob lớn: chunk upload + lưu an toàn để resend
-              resultArea.textContent = `Audio ${sizeMB}MB: đang chia nhỏ & upload...`;
-              statusEl.textContent = 'Đang gửi bài... Bạn có thể rời khỏi trang trong khi quá trình gửi bài đang diễn ra.';
+              // 2) Blob lớn: CHUNK upload
+              resultArea.textContent = `Audio ${sizeMB}MB: đang chia nhỏ & upload... (Tối đa 2 phút)`;
 
-              const audioKey = `AUDIO_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-              try { await idbSetBlob(audioKey, finalBlob); } catch(e) {}
-
-              const meta = {
+              // Pass start time to check timeout inside loop
+              await uploadAudioInChunksNoCors(blob, mime, {
                 studentName: n,
                 studentClass: c,
                 topicLabel,
                 questionSummary,
                 transcript: fullTranscript
-              };
+              }, uploadStartTime);
 
-              savePending({
-                __pendingMode: "chunk",
-                audioKey,
-                mimeType: mime,
-                meta,
-                studentName: n,
-                studentClass: c
-              });
-
-              try {
-                await uploadAudioInChunksNoCors(finalBlob, mime, meta);
-                sendBtn.disabled = false;
-                await idbDelBlob(audioKey);
-                clearPending();
-                resultArea.innerHTML = '<span class="status-ok">Đã gửi yêu cầu. Vui lòng kiểm tra email GV (sẽ có link audio).</span>';
-              } catch (e) {
-                sendBtn.disabled = false;
-                resultArea.innerHTML = '<span class="status-error">Upload chưa hoàn tất/không xác nhận được. Bài đã được lưu. Hãy bấm "Gửi lại bài vừa lưu" và kiểm tra email GV.</span>';
-              }
-            } catch (e) {
               sendBtn.disabled = false;
-              resultArea.innerHTML = '<span class="status-error">Có lỗi xảy ra. Vui lòng thử lại.</span>';
+              resultArea.innerHTML = '<span class="status-ok">Đã nộp thành công! Vui lòng kiểm tra email GV (sẽ có link audio).</span>';
+
+            } catch (e) {
+              console.log(e);
+              uploadProgress.style.display = "none";
+              
+              if (e.message === "TIMEOUT") {
+                 // Fallback: Send text only
+                 sendTranscriptOnly('<span class="status-warning">⚠️ Hết thời gian chờ (2 phút). Mạng quá chậm để gửi file ghi âm. Hệ thống đã tự động gửi thông tin học sinh để ghi nhận bài làm (không có audio).</span>');
+              } else {
+                 sendBtn.disabled = false;
+                 resultArea.innerHTML = '<span class="status-error">Upload audio bị lỗi (mạng yếu/đứt). Hãy bấm Nộp bài lại ngay khi mạng ổn định.</span>';
+              }
             }
           })();
         });
       };
 
-      // ===================== SUGGESTIONS BUTTON (FULL Q1→Q10) =====================
+      // gợi ý
       suggestBtn.onclick = () => {
         if (!hasCompletedTopic) {
           alert("Bạn cần chạy hết 10 câu (từ câu 1 đến câu 10) trước khi xem gợi ý để tránh phụ thuộc vào bài mẫu.");
           return;
         }
-
         const topicId = topicSelect.value;
-        const bank = SUGGESTED_ANSWERS_6[topicId];
-
-        if (!bank) {
-          suggestionsArea.textContent = "Hiện chưa có gợi ý trả lời cho chủ đề này.";
-          return;
-        }
-
-        let out = "";
-        for (let i = 1; i <= 10; i++) {
-          const a = bank[i] || "";
-          out += `Q${i}: ${a}\n\n`;
-        }
-        suggestionsArea.textContent = out.trim();
+        const text = SUGGESTED_PARAGRAPHS_6[topicId];
+        suggestionsArea.textContent = text || "Hiện chưa có gợi ý trả lời cho chủ đề này. Thầy cô sẽ cập nhật sau.";
       };
-
-      // ======= beforeunload warning =======
-      window.addEventListener("beforeunload", (e) => {
-        const p = getPending();
-        if (uploadInProgress || (p && p.payload)) {
-          e.preventDefault();
-          e.returnValue = "";
-          return "";
-        }
-      });
-
-      // init
-      initSpeech();
     </script>
   </body>
 </html>
